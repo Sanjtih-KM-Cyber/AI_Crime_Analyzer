@@ -496,6 +496,8 @@ export function detectSuspiciousPatterns(
         type: "BURNER_SWAP",
         title: "Burner Device Hopping (Shared IMEI)",
         severity: "CRITICAL",
+        confidence: 0.94,
+        triggerExplanation: `Rule Match: Hardware IMEI ${imei} bound to ${phoneSet.size} distinct SIM cards within surveillance window.`,
         description: `Hardware device IMEI ${imei} was used to operate ${phoneSet.size} distinct SIM cards (${numbers.join(
           ", "
         )}), indicating systematic burner phone swapping to evade surveillance.`,
@@ -541,6 +543,8 @@ export function detectSuspiciousPatterns(
         type: "HAWALA_LAYERING",
         title: "Multi-Tier Hawala & Fund Layering Syndicate",
         severity: "CRITICAL",
+        confidence: 0.91,
+        triggerExplanation: `Rule Match: Multi-tier rapid pass-through layering across ${uniqueAccounts.length} beneficiary accounts.`,
         description: `Identified automated pass-through financial layering across ${uniqueAccounts.length} mule accounts with ₹${(
           totalVolume / 100000
         ).toFixed(1)} Lakhs in structured transfers routed within short time intervals to conceal the illicit origin.`,
@@ -576,6 +580,8 @@ export function detectSuspiciousPatterns(
         type: "GEO_CONVERGENCE",
         title: `Geo-Spatial Convergence at ${location}`,
         severity: "HIGH",
+        confidence: 0.88,
+        triggerExplanation: `Rule Match: Co-location threshold met with ${suspects.size} high-risk entities at ${location}.`,
         description: `${suspects.size} high-risk suspects pinged cell towers in the immediate vicinity of ${location}, indicating an in-person tactical meeting or safehouse operation.`,
         involvedNodeIds: matchedNodeIds.length ? matchedNodeIds : suspectList,
         involvedLinkIds: [],
@@ -597,6 +603,8 @@ export function detectSuspiciousPatterns(
       type: "KINGPIN_SHIELD",
       title: `Kingpin Shielding Architecture: ${kp.label}`,
       severity: "CRITICAL",
+      confidence: 0.95,
+      triggerExplanation: `Rule Match: Betweenness centrality (${kp.betweenness || 0.28}) exceeds 0.12 threshold with proxy buffer topology.`,
       description: `${kp.label} exhibits a classic Kingpin Shield profile (Betweenness: ${kp.betweenness || 0.28}, Risk: ${kp.riskScore}/100). The target avoids direct contact with ground operatives, communicating almost exclusively through isolated proxy lieutenants.`,
       involvedNodeIds: [kp.id],
       involvedLinkIds: [],

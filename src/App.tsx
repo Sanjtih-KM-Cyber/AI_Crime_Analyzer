@@ -10,6 +10,8 @@ import {
   FinancialRecord,
   FIRRecord,
   IntelRecord,
+  ReviewState,
+  EvidenceFileRecord,
 } from "./types";
 import {
   SAMPLE_CASES,
@@ -32,6 +34,8 @@ import { PatternAlerts } from "./components/PatternAlerts";
 import { GeoTimelineView } from "./components/GeoTimelineView";
 import { DataIngestionHub } from "./components/DataIngestionHub";
 import { EntityDetailDrawer } from "./components/EntityDetailDrawer";
+import { RelationshipDetailDrawer } from "./components/RelationshipDetailDrawer";
+import { AddEvidenceModal } from "./components/AddEvidenceModal";
 import { AiCopilotDrawer } from "./components/AiCopilotDrawer";
 import { DossierModal } from "./components/DossierModal";
 import { CreateCaseModal } from "./components/CreateCaseModal";
@@ -53,6 +57,7 @@ export default function App() {
         cdrs: CDRRecord[];
         financials: FinancialRecord[];
         intels: IntelRecord[];
+        evidenceFiles?: EvidenceFileRecord[];
       }
     >
   >({
@@ -63,6 +68,7 @@ export default function App() {
       cdrs: GARUDA_CDRS,
       financials: GARUDA_FINANCIALS,
       intels: GARUDA_INTEL,
+      evidenceFiles: SAMPLE_CASES[0].evidenceFiles,
     },
     "CASE-SHADOWVAULT-2026": {
       nodes: SHADOWVAULT_NODES,
@@ -71,6 +77,7 @@ export default function App() {
       cdrs: [],
       financials: [],
       intels: [],
+      evidenceFiles: SAMPLE_CASES[1].evidenceFiles,
     },
   });
 
@@ -93,6 +100,7 @@ export default function App() {
 
   // Selection & Highlight State
   const [selectedNode, setSelectedNode] = useState<CrimeNetworkNode | null>(null);
+  const [selectedLink, setSelectedLink] = useState<CrimeNetworkLink | null>(null);
   const [shortestPath, setShortestPath] = useState<ShortestPathResult | null>(null);
   const [selectedPattern, setSelectedPattern] = useState<SuspiciousPattern | null>(null);
 
@@ -100,6 +108,7 @@ export default function App() {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isDossierOpen, setIsDossierOpen] = useState(false);
   const [isCreateCaseOpen, setIsCreateCaseOpen] = useState(false);
+  const [isAddEvidenceOpen, setIsAddEvidenceOpen] = useState(false);
 
   // Save current case state to caseDataMap whenever nodes/links change
   useEffect(() => {
@@ -112,14 +121,16 @@ export default function App() {
         cdrs,
         financials,
         intels,
+        evidenceFiles: currentCase.evidenceFiles,
       },
     }));
-  }, [nodes, links, firs, cdrs, financials, intels, currentCase.id]);
+  }, [nodes, links, firs, cdrs, financials, intels, currentCase]);
 
   // Switch Active Case dataset
   const handleSelectCase = (targetCase: CaseDataset) => {
     setCurrentCase(targetCase);
     setSelectedNode(null);
+    setSelectedLink(null);
     setShortestPath(null);
     setSelectedPattern(null);
 
@@ -147,12 +158,12 @@ export default function App() {
       setIntels([]);
     } else {
       // Blank or newly initialized case
-      setNodes([]);
-      setLinks([]);
-      setFirs([]);
-      setCdrs([]);
-      setFinancials([]);
-      setIntels([]);
+      setNodes(targetCase.nodes || []);
+      setLinks(targetCase.links || []);
+      setFirs(targetCase.firs || []);
+      setCdrs(targetCase.cdrs || []);
+      setFinancials(targetCase.financials || []);
+      setIntels(targetCase.intels || []);
     }
   };
 
@@ -175,6 +186,7 @@ export default function App() {
         cdrs: [],
         financials: [],
         intels: [],
+        evidenceFiles: newCase.evidenceFiles || [],
       },
     }));
 
@@ -187,14 +199,15 @@ export default function App() {
     setFinancials([]);
     setIntels([]);
     setSelectedNode(null);
+    setSelectedLink(null);
     setShortestPath(null);
     setSelectedPattern(null);
 
-    // 4. If initial nodes exist, switch to graph or overview
+    // 4. Navigate to graph or overview
     if (initialNodes.length > 0) {
       setActiveTab("graph");
     } else {
-      setActiveTab("ingest");
+      setActiveTab("overview");
     }
   };
 
@@ -216,12 +229,13 @@ export default function App() {
     return selectedPattern ? selectedPattern.involvedLinkIds : [];
   }, [selectedPattern]);
 
-  // Handler for Ingesting Extracted NLP / CDR / Financial data
+  // Handler for Ingesting Extracted NLP / CDR / Financial data (Bulk up to 15GB)
   const handleIngestExtractedData = (
     newNodes: CrimeNetworkNode[],
     newLinks: CrimeNetworkLink[],
     newCdrs?: CDRRecord[],
-    newFins?: FinancialRecord[]
+    newFins?: FinancialRecord[],
+    newEvidenceFiles?: EvidenceFileRecord[]
   ) => {
     // Merge unique nodes by ID
     setNodes((prev) => {
@@ -244,6 +258,95 @@ export default function App() {
     if (newFins && newFins.length > 0) {
       setFinancials((prev) => [...prev, ...newFins]);
     }
+
+    if (newEvidenceFiles && newEvidenceFiles.length > 0) {
+      setCurrentCase((prev) => ({
+        ...prev,
+        evidenceFiles: [...(prev.evidenceFiles || []), ...newEvidenceFiles],
+      }));
+    }
+  };
+
+  // Handler to update Node Review State
+  const handleUpdateNodeReviewState = (nodeId: string, newState: ReviewState) => {
+    setNodes((prev) =>
+      prev.map((n) => (n.id === nodeId ? { ...n, reviewState: newState } : n))
+    );
+    if (selectedNode && selectedNode.id === nodeId) {
+      setSelectedNode((prev) => (prev ? { ...prev, reviewState: newState } : null));
+    }
+  };
+
+  // Handler to add Node Investigator Note
+  const handleAddNodeNote = (nodeId: string, noteText: string) => {
+    const newNote = {
+      id: `NOTE-${Date.now()}`,
+      targetId: nodeId,
+      author: "Investigating Officer (IO)",
+      text: noteText,
+      timestamp: new Date().toISOString(),
+    };
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              investigatorNotesList: [...(n.investigatorNotesList || []), newNote],
+            }
+          : n
+      )
+    );
+    if (selectedNode && selectedNode.id === nodeId) {
+      setSelectedNode((prev) =>
+        prev
+          ? {
+              ...prev,
+              investigatorNotesList: [...(prev.investigatorNotesList || []), newNote],
+            }
+          : null
+      );
+    }
+  };
+
+  // Handler to update Link Review State
+  const handleUpdateLinkReviewState = (linkId: string, newState: ReviewState) => {
+    setLinks((prev) =>
+      prev.map((l) => (l.id === linkId ? { ...l, reviewState: newState } : l))
+    );
+    if (selectedLink && selectedLink.id === linkId) {
+      setSelectedLink((prev) => (prev ? { ...prev, reviewState: newState } : null));
+    }
+  };
+
+  // Handler to add Link Investigator Note
+  const handleAddLinkNote = (linkId: string, noteText: string) => {
+    const newNote = {
+      id: `NOTE-LINK-${Date.now()}`,
+      targetId: linkId,
+      author: "Investigating Officer (IO)",
+      text: noteText,
+      timestamp: new Date().toISOString(),
+    };
+    setLinks((prev) =>
+      prev.map((l) =>
+        l.id === linkId
+          ? {
+              ...l,
+              investigatorNotesList: [...(l.investigatorNotesList || []), newNote],
+            }
+          : l
+      )
+    );
+    if (selectedLink && selectedLink.id === linkId) {
+      setSelectedLink((prev) =>
+        prev
+          ? {
+              ...prev,
+              investigatorNotesList: [...(prev.investigatorNotesList || []), newNote],
+            }
+          : null
+      );
+    }
   };
 
   // Handler to initiate path finding from entity drawer
@@ -262,9 +365,22 @@ export default function App() {
     setActiveTab("patterns");
   };
 
+  // Find source & target for selectedLink
+  const linkSourceNode = selectedLink
+    ? analyzedNodes.find(
+        (n) => n.id === (typeof selectedLink.source === "object" ? (selectedLink.source as any).id : selectedLink.source)
+      ) || { id: "unknown", label: "Unknown Source", type: "PERSON" as const, riskScore: 50, confidence: 0.5 }
+    : null;
+
+  const linkTargetNode = selectedLink
+    ? analyzedNodes.find(
+        (n) => n.id === (typeof selectedLink.target === "object" ? (selectedLink.target as any).id : selectedLink.target)
+      ) || { id: "unknown", label: "Unknown Target", type: "PERSON" as const, riskScore: 50, confidence: 0.5 }
+    : null;
+
   return (
     <div className="h-screen w-screen bg-slate-950 text-slate-100 flex overflow-hidden font-sans selection:bg-amber-500 selection:text-slate-950">
-      {/* 1. Collapsible Professional Left Sidebar (Desktop + Mobile slide-out drawer) */}
+      {/* 1. Collapsible Professional Left Sidebar */}
       <Sidebar
         currentCase={currentCase}
         allCases={allCases}
@@ -286,7 +402,7 @@ export default function App() {
 
       {/* 2. Main Intelligence Workstation Viewport */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-slate-950">
-        {/* Top Header Command Bar with Global Omnibar Search & New Case Button */}
+        {/* Top Header Command Bar */}
         <Header
           currentCase={currentCase}
           allCases={allCases}
@@ -322,6 +438,7 @@ export default function App() {
               onOpenCopilot={() => setIsCopilotOpen(true)}
               onOpenDossier={() => setIsDossierOpen(true)}
               onOpenNewCase={() => setIsCreateCaseOpen(true)}
+              onOpenAddEvidence={() => setIsAddEvidenceOpen(true)}
             />
           )}
 
@@ -333,6 +450,7 @@ export default function App() {
               communities={communities}
               selectedNodeId={selectedNode?.id || null}
               onSelectNode={setSelectedNode}
+              onSelectLink={(link) => setSelectedLink(link)}
               shortestPath={shortestPath}
               highlightedPatternNodeIds={highlightedPatternNodeIds}
               highlightedPatternLinkIds={highlightedPatternLinkIds}
@@ -385,7 +503,7 @@ export default function App() {
             />
           )}
 
-          {/* Module 5: Multi-Source Data Ingestion Hub */}
+          {/* Module 5: Multi-Source Data Ingestion Hub (Supports 15GB files) */}
           {activeTab === "ingest" && (
             <DataIngestionHub
               onIngestExtractedData={handleIngestExtractedData}
@@ -411,7 +529,16 @@ export default function App() {
         onCreateCase={handleCreateCase}
       />
 
-      {/* 5. 360-Degree Entity Detail Drawer */}
+      {/* 5. Add Bulk Evidence Modal (Supports 15GB Max Ingestion) */}
+      <AddEvidenceModal
+        isOpen={isAddEvidenceOpen}
+        onClose={() => setIsAddEvidenceOpen(false)}
+        caseTitle={currentCase.name}
+        caseId={currentCase.id}
+        onCommitEvidence={handleIngestExtractedData}
+      />
+
+      {/* 6. 360-Degree Entity Detail Drawer with Evidence Review & Notes */}
       {selectedNode && (
         <EntityDetailDrawer
           node={selectedNode}
@@ -420,10 +547,25 @@ export default function App() {
           onClose={() => setSelectedNode(null)}
           onSelectNeighbor={(neighbor) => setSelectedNode(neighbor)}
           onInitiatePathFind={handleInitiatePathFind}
+          onUpdateReviewState={handleUpdateNodeReviewState}
+          onAddNote={handleAddNodeNote}
+          onSelectLink={(link) => setSelectedLink(link)}
         />
       )}
 
-      {/* 6. AI Criminal Graph Copilot */}
+      {/* 7. Relationship / Link Detail Drawer with Evidence Traceability */}
+      {selectedLink && linkSourceNode && linkTargetNode && (
+        <RelationshipDetailDrawer
+          link={selectedLink}
+          sourceNode={linkSourceNode}
+          targetNode={linkTargetNode}
+          onClose={() => setSelectedLink(null)}
+          onUpdateReviewState={handleUpdateLinkReviewState}
+          onAddNote={handleAddLinkNote}
+        />
+      )}
+
+      {/* 8. AI Criminal Graph Copilot */}
       <AiCopilotDrawer
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
@@ -434,7 +576,7 @@ export default function App() {
         onSelectNode={(node) => setSelectedNode(node)}
       />
 
-      {/* 7. Court-Ready Case Intelligence Dossier */}
+      {/* 9. Court-Ready Case Intelligence Dossier */}
       <DossierModal
         isOpen={isDossierOpen}
         onClose={() => setIsDossierOpen(false)}

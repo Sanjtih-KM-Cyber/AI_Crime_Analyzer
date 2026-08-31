@@ -110,10 +110,11 @@ ${text}
   }
 });
 
-// API: AI Copilot for Criminal Graph Queries & Hypothesis Testing
-app.post("/api/graph-copilot", async (req, res) => {
+// API: AI Copilot for Criminal Graph Queries & Hypothesis Testing (Supports /api/copilot & /api/graph-copilot)
+const handleCopilot = async (req: express.Request, res: express.Response) => {
   try {
-    const { query, graphContext } = req.body;
+    const { query, contextData, graphContext } = req.body;
+    const effectiveContext = contextData || graphContext || {};
     if (!query) {
       return res.status(400).json({ error: "Query is required." });
     }
@@ -121,7 +122,8 @@ app.post("/api/graph-copilot", async (req, res) => {
     const ai = getGeminiClient();
     if (!ai) {
       return res.json({
-        answer: "Gemini API key is not configured. Graph Copilot requires GEMINI_API_KEY.",
+        reply: "Gemini API key is not configured. Graph Copilot running in deterministic intelligence mode.",
+        answer: "Gemini API key is not configured. Graph Copilot running in deterministic intelligence mode.",
       });
     }
 
@@ -129,12 +131,11 @@ app.post("/api/graph-copilot", async (req, res) => {
 You have access to the current dynamic Criminal Network Knowledge Graph:
 
 GRAPH SUMMARY CONTEXT:
-- Total Nodes: ${graphContext?.nodeCount || 0}
-- Total Relationships: ${graphContext?.linkCount || 0}
-- Key Influencers / Kingpin Candidates: ${JSON.stringify(graphContext?.topInfluencers || [])}
-- Detected Suspicious Patterns: ${JSON.stringify(graphContext?.suspiciousPatterns || [])}
-- Communities / Gang Factions: ${JSON.stringify(graphContext?.communities || [])}
-- Sample Entities & Links: ${JSON.stringify(graphContext?.sampleEntities || [])}
+- Total Nodes: ${effectiveContext?.nodes?.length || effectiveContext?.nodeCount || 0}
+- Total Relationships: ${effectiveContext?.links?.length || effectiveContext?.linkCount || 0}
+- Key Influencers / Kingpin Candidates: ${JSON.stringify(effectiveContext?.topInfluencers || effectiveContext?.nodes?.filter((n: any) => n.isKingpinCandidate || n.riskScore >= 80) || [])}
+- Detected Suspicious Patterns: ${JSON.stringify(effectiveContext?.patterns || effectiveContext?.suspiciousPatterns || [])}
+- Communities / Gang Factions: ${JSON.stringify(effectiveContext?.communities || [])}
 
 INVESTIGATOR'S QUESTION:
 "${query}"
@@ -151,34 +152,47 @@ INSTRUCTIONS:
       contents: prompt,
     });
 
-    return res.json({ answer: response.text });
+    const replyText = response.text || "";
+    return res.json({ reply: replyText, answer: replyText });
   } catch (error: any) {
-    console.error("Error in /api/graph-copilot:", error);
+    console.error("Error in copilot handler:", error);
     return res.status(500).json({
       error: error.message || "Failed to generate AI Copilot response.",
     });
   }
-});
+};
 
-// API: Automated Court-Ready Intelligence Dossier Generation
-app.post("/api/generate-dossier", async (req, res) => {
+app.post("/api/copilot", handleCopilot);
+app.post("/api/graph-copilot", handleCopilot);
+
+// API: Automated Court-Ready Intelligence Dossier Generation (Supports /api/dossier & /api/generate-dossier)
+const handleDossier = async (req: express.Request, res: express.Response) => {
   try {
-    const { caseTitle, graphSummary, focalSuspect } = req.body;
+    const { caseDataset, caseTitle, graphSummary, focalSuspect, nodes, links, patterns, communities } = req.body;
+    const effectiveTitle = caseDataset?.name || caseTitle || "Syndicate Interdiction";
 
     const ai = getGeminiClient();
     if (!ai) {
       return res.json({
-        dossierText: `# Case Intelligence Brief: ${caseTitle || "Criminal Syndicate Investigation"}\n\n*Note: AI Dossier synthesis is running in offline mode. Please configure GEMINI_API_KEY for dynamic generative dossiers.*`,
+        dossierText: `# Case Intelligence Brief: ${effectiveTitle}\n\n*Note: AI Dossier synthesis is running in offline mode. Please configure GEMINI_API_KEY for dynamic generative dossiers.*`,
       });
     }
 
+    const contextPayload = {
+      title: effectiveTitle,
+      caseNumber: caseDataset?.codeName || "OP-GARUDA-2026",
+      nodesCount: nodes?.length || graphSummary?.nodeCount || 0,
+      linksCount: links?.length || graphSummary?.linkCount || 0,
+      focalSuspect: focalSuspect || null,
+      topPatterns: patterns || graphSummary?.patterns || [],
+      communities: communities || graphSummary?.communities || [],
+    };
+
     const prompt = `You are an expert Intelligence Analyst drafting an official Intelligence Dossier & Chargesheet Annexure for the Director General of Police (DGP) and Court of Law.
 
-CASE TITLE: ${caseTitle || "Syndicate Interdiction"}
-FOCAL SUSPECT / TARGET: ${focalSuspect ? JSON.stringify(focalSuspect) : "Entire Syndicate"}
-
-CURRENT NETWORK EVIDENCE BASE:
-${JSON.stringify(graphSummary, null, 2)}
+CASE TITLE: ${effectiveTitle}
+CASE CONTEXT:
+${JSON.stringify(contextPayload, null, 2)}
 
 Produce a formal, highly detailed Case Intelligence Dossier with the following sections:
 1. EXECUTIVE INTELLIGENCE SUMMARY (Modus Operandi, Syndicate Scope, Financial Volume)
@@ -194,14 +208,17 @@ Write with sharp professional authority and structured clarity.`;
       contents: prompt,
     });
 
-    return res.json({ dossier: response.text });
+    return res.json({ dossier: response.text, dossierText: response.text });
   } catch (error: any) {
-    console.error("Error in /api/generate-dossier:", error);
+    console.error("Error in dossier handler:", error);
     return res.status(500).json({
       error: error.message || "Failed to generate intelligence dossier.",
     });
   }
-});
+};
+
+app.post("/api/dossier", handleDossier);
+app.post("/api/generate-dossier", handleDossier);
 
 // Start server with Vite middleware in dev mode
 async function startServer() {

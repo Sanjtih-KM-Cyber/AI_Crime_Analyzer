@@ -18,6 +18,23 @@ export type RelationType =
   | "MEMBER_OF"
   | "LOCATED_AT";
 
+export type InformationCategory =
+  | "EVIDENCE"
+  | "INVESTIGATOR_KNOWLEDGE"
+  | "INFERENCE"
+  | "HYPOTHESIS";
+
+export type ReviewState =
+  | "CONFIRMED"
+  | "NEEDS_REVIEW"
+  | "REJECTED"
+  | "UNCERTAIN";
+
+export type AIProcessingEngine =
+  | "LOCAL_OFFLINE"
+  | "GROQ_LPU"
+  | "GEMINI_37";
+
 export interface GeoLocation {
   lat: number;
   lng: number;
@@ -25,10 +42,45 @@ export interface GeoLocation {
   address?: string;
 }
 
+export interface SourceSnippet {
+  docId: string;
+  docName: string;
+  page?: number;
+  line?: number;
+  row?: number;
+  locator?: string;
+  timestamp?: string;
+  snippet: string;
+  confidence: number;
+}
+
+export interface InvestigatorNote {
+  id: string;
+  targetId: string;
+  author: string;
+  authorRank?: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface RelationshipEvidence {
+  sourceDocumentId: string;
+  sourceDocumentName: string;
+  locator?: string; // e.g. "Page 4, Line 12" or "CDR Row #412"
+  page?: number;
+  row?: number;
+  timestamp?: string;
+  excerpt: string;
+  confidence: number;
+  basis: string;
+}
+
 export interface CrimeNetworkNode {
   id: string;
   label: string;
   type: EntityType;
+  category?: InformationCategory; // EVIDENCE vs INVESTIGATOR_KNOWLEDGE vs INFERENCE vs HYPOTHESIS
+  reviewState?: ReviewState; // CONFIRMED vs NEEDS_REVIEW vs REJECTED vs UNCERTAIN
   role?: string;
   aliases?: string[];
   riskScore: number; // 0 - 100
@@ -50,6 +102,16 @@ export interface CrimeNetworkNode {
     lastSeen?: string;
     status?: "ACTIVE" | "WANTED" | "ARRESTED" | "SURVEILLANCE" | "FLAGGED";
   };
+  // Explicit SIH Blueprint Separations
+  investigatorNotesList?: InvestigatorNote[];
+  sourceSnippets?: SourceSnippet[];
+  possibleDuplicates?: Array<{
+    candidateId: string;
+    candidateLabel: string;
+    similarityScore: number;
+    matchReason: string;
+  }>;
+
   // Graph Analytics Metrics
   degree?: number;
   inDegree?: number;
@@ -62,6 +124,7 @@ export interface CrimeNetworkNode {
   isKingpinCandidate?: boolean;
   isCutVertex?: boolean; // Single point of failure/bridge
   sourceDocumentIds?: string[];
+
   // D3 physics coordinates
   x?: number;
   y?: number;
@@ -76,6 +139,8 @@ export interface CrimeNetworkLink {
   source: string | CrimeNetworkNode;
   target: string | CrimeNetworkNode;
   relationType: RelationType;
+  category?: InformationCategory; // EVIDENCE vs INFERENCE vs HYPOTHESIS
+  reviewState?: ReviewState; // CONFIRMED vs NEEDS_REVIEW vs REJECTED vs UNCERTAIN
   weight: number; // strength or frequency of link
   frequency?: number; // e.g. call count, transaction count
   amount?: number; // for financial transfers in INR
@@ -83,6 +148,8 @@ export interface CrimeNetworkLink {
   timestamp?: string; // ISO date string
   details?: string;
   sourceDocumentId?: string;
+  evidenceDetail?: RelationshipEvidence;
+  investigatorNotesList?: InvestigatorNote[];
   flags?: Array<
     | "SUSPICIOUS_HAWALA"
     | "NIGHT_CALL"
@@ -94,6 +161,43 @@ export interface CrimeNetworkLink {
   >;
 }
 
+export interface EvidenceFileRecord {
+  id: string;
+  fileName: string;
+  fileSize: number; // in bytes (supports up to 15GB)
+  fileSizeFormatted: string; // e.g. "4.2 MB" or "1.4 GB"
+  fileType: "PDF" | "IMAGE_OCR" | "TEXT_DOC" | "CDR_CSV" | "FINANCIAL_CSV" | "AUDIO_LOG" | "VIDEO_CCTV" | "DOCX";
+  fileHash: string; // SHA-256 checksum for legal admissibility (Sec 65B BSA)
+  uploadedAt: string;
+  processingStatus: "PROCESSED" | "PROCESSING" | "QUEUED" | "FAILED";
+  extractedEntitiesCount: number;
+  extractedRelationsCount: number;
+  rawTextPreview?: string;
+  summary?: string;
+  sourceAuthority?: string;
+  qualityWarning?: string;
+}
+
+export interface InvestigatorHypothesis {
+  id: string;
+  title: string;
+  narrative: string;
+  author: string;
+  status: "ACTIVE" | "VALIDATED" | "DISPROVEN" | "SUSPENDED";
+  associatedSuspectIds: string[];
+  createdAt: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  user: string;
+  userRank: string;
+  action: string; // e.g. "CONFIRMED_ENTITY", "REJECTED_LINK", "INGESTED_BULK_EVIDENCE", "ADDED_HYPOTHESIS"
+  objectId: string;
+  timestamp: string;
+  details: string;
+}
+
 export interface FIRRecord {
   id: string;
   firNumber: string;
@@ -101,7 +205,7 @@ export interface FIRRecord {
   policeStation: string;
   district: string;
   state: string;
-  sections: string[]; // e.g. ["IPC 302", "IPC 120B", "NDPS Sec 21"]
+  sections: string[]; // e.g. ["IPC 302", "IPC 120B", "NDPS Sec 21", "BNS Sec 111"]
   complainant: string;
   accused: string[];
   briefNarrative: string;
@@ -164,7 +268,10 @@ export interface SuspiciousPattern {
   type: PatternType;
   title: string;
   severity: "CRITICAL" | "HIGH" | "MEDIUM";
+  confidence?: number;
   description: string;
+  triggerExplanation: string; // Explicit explainability reason
+  reviewState?: ReviewState;
   involvedNodeIds: string[];
   involvedLinkIds: string[];
   evidenceData: Record<string, any>;
@@ -192,6 +299,8 @@ export interface GraphFilterState {
   searchQuery: string;
   selectedEntityTypes: EntityType[];
   selectedRelationTypes: RelationType[];
+  selectedCategory: InformationCategory | "ALL";
+  selectedReviewState: ReviewState | "ALL";
   minRiskScore: number;
   selectedCommunity: number | "ALL";
   onlyKingpins: boolean;
@@ -245,4 +354,7 @@ export interface CaseDataset {
   cdrs: CDRRecord[];
   financials: FinancialRecord[];
   intels: IntelRecord[];
+  evidenceFiles: EvidenceFileRecord[];
+  hypotheses: InvestigatorHypothesis[];
+  auditLogs: AuditLogEntry[];
 }

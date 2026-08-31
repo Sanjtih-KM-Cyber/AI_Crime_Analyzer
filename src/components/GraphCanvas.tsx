@@ -7,6 +7,8 @@ import {
   RelationType,
   SyndicateCommunity,
   ShortestPathResult,
+  InformationCategory,
+  ReviewState,
 } from "../types";
 import {
   ZoomIn,
@@ -32,6 +34,9 @@ import {
   Radio,
   SlidersHorizontal,
   X,
+  Quote,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface GraphCanvasProps {
@@ -40,6 +45,7 @@ interface GraphCanvasProps {
   communities: SyndicateCommunity[];
   selectedNodeId: string | null;
   onSelectNode: (node: CrimeNetworkNode | null) => void;
+  onSelectLink?: (link: CrimeNetworkLink) => void;
   shortestPath: ShortestPathResult | null;
   highlightedPatternNodeIds?: string[];
   highlightedPatternLinkIds?: string[];
@@ -51,6 +57,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   communities,
   selectedNodeId,
   onSelectNode,
+  onSelectLink,
   shortestPath,
   highlightedPatternNodeIds = [],
   highlightedPatternLinkIds = [],
@@ -62,6 +69,8 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [sizingMetric, setSizingMetric] = useState<"betweenness" | "degree" | "pageRank" | "risk">("betweenness");
   const [colorMode, setColorMode] = useState<"community" | "type" | "risk">("community");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<InformationCategory | "ALL">("ALL");
+  const [selectedReviewState, setSelectedReviewState] = useState<ReviewState | "ALL">("ALL");
   const [selectedTypes, setSelectedTypes] = useState<EntityType[]>([
     "PERSON",
     "PHONE",
@@ -90,6 +99,19 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       if (!selectedTypes.includes(n.type)) return false;
       if (n.riskScore < minRisk) return false;
       if (onlyKingpins && !n.isKingpinCandidate) return false;
+
+      // Category filter (Evidence vs Investigator Hypothesis)
+      if (selectedCategory !== "ALL") {
+        if (selectedCategory === "INVESTIGATOR_KNOWLEDGE" && n.category !== "INVESTIGATOR_KNOWLEDGE") return false;
+        if (selectedCategory === "EVIDENCE" && n.category === "INVESTIGATOR_KNOWLEDGE") return false;
+      }
+
+      // Review State filter
+      if (selectedReviewState !== "ALL") {
+        const review = n.reviewState || "NEEDS_REVIEW";
+        if (review !== selectedReviewState) return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = n.label.toLowerCase().includes(q);
@@ -101,7 +123,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       }
       return true;
     });
-  }, [nodes, selectedTypes, minRisk, onlyKingpins, searchQuery]);
+  }, [nodes, selectedTypes, minRisk, onlyKingpins, selectedCategory, selectedReviewState, searchQuery]);
 
   const filteredNodeIds = useMemo(() => new Set(filteredNodes.map((n) => n.id)), [filteredNodes]);
 
@@ -249,6 +271,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       .data(simLinks)
       .enter()
       .append("line")
+      .style("cursor", "pointer")
       .attr("stroke", (d) => {
         const isPatternLink = highlightedPatternLinkIds.includes(d.id);
         const isShortestPathLink =
@@ -261,6 +284,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 
         if (isShortestPathLink) return "#f59e0b"; // Gold
         if (isPatternLink) return "#f43f5e"; // Rose Red
+        if (d.category === "INVESTIGATOR_KNOWLEDGE") return "#c084fc"; // Purple for Hypotheses
         return "rgba(100, 116, 139, 0.45)"; // Slate
       })
       .attr("stroke-width", (d) => {
@@ -273,10 +297,20 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           );
         if (isShortestPathLink) return 3.5;
         if (highlightedPatternLinkIds.includes(d.id)) return 3;
-        return Math.min(4, Math.max(1, (d.weight || 1) * 0.8));
+        return Math.min(4, Math.max(1.5, (d.weight || 1) * 0.8));
       })
-      .attr("stroke-dasharray", (d) => (d.flags && d.flags.length > 0 ? "4,4" : "none"))
-      .attr("opacity", 0.8);
+      .attr("stroke-dasharray", (d) => {
+        if (d.category === "INVESTIGATOR_KNOWLEDGE") return "3,3";
+        return d.flags && d.flags.length > 0 ? "4,4" : "none";
+      })
+      .attr("opacity", 0.8)
+      .on("click", (event, d) => {
+        event.stopPropagation();
+        if (onSelectLink) {
+          const originalLink = links.find((l) => l.id === d.id) || (d as CrimeNetworkLink);
+          onSelectLink(originalLink);
+        }
+      });
 
     // Link Labels
     const linkLabelGroup = g.append("g").attr("class", "link-labels");
@@ -285,7 +319,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       .data(simLinks.filter((l) => l.relationType && l.relationType !== "ASSOCIATED_WITH"))
       .enter()
       .append("text")
-      .text((d) => d.relationType.replace("_", " ").toLowerCase())
+      .text((d) => d.relationType.replace(/_/g, " ").toLowerCase())
       .attr("font-size", "8px")
       .attr("fill", "rgba(148, 163, 184, 0.6)")
       .attr("text-anchor", "middle")
@@ -347,12 +381,13 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       .attr("stroke", (d) => {
         if (d.id === selectedNodeId) return "#38bdf8";
         if (d.isCutVertex) return "#a855f7";
+        if (d.category === "INVESTIGATOR_KNOWLEDGE") return "#c084fc";
         return "rgba(15, 23, 42, 0.9)";
       })
       .attr("stroke-width", (d) => (d.id === selectedNodeId ? 3.5 : 2))
       .attr("filter", "drop-shadow(0 2px 6px rgba(0,0,0,0.6))");
 
-    // Node Icons / Text Indicators
+    // Node Icons
     node
       .append("text")
       .attr("text-anchor", "middle")
@@ -391,19 +426,20 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       .attr("paint-order", "stroke")
       .style("pointer-events", "none");
 
-    // Secondary Tag: Role or Phone
+    // Category / Review Tag
     node
       .append("text")
       .text((d) => {
+        if (d.category === "INVESTIGATOR_KNOWLEDGE") return "[HYPO]";
+        if (d.reviewState === "CONFIRMED") return "✓ EVID";
         if (d.role) return d.role;
-        if (d.details?.phone) return d.details.phone;
         return "";
       })
       .attr("x", 0)
       .attr("y", (d) => getNodeRadius(d) + 24)
       .attr("text-anchor", "middle")
       .attr("font-size", "9px")
-      .attr("fill", "rgba(148, 163, 184, 0.8)")
+      .attr("fill", (d) => (d.category === "INVESTIGATOR_KNOWLEDGE" ? "#c084fc" : "rgba(148, 163, 184, 0.8)"))
       .attr("font-family", "monospace")
       .attr("stroke", "#020617")
       .attr("stroke-width", 2.5)
@@ -418,33 +454,13 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 
     node.on("mouseenter", (event, d) => {
       setHoveredNodeId(d.id);
-      const neighborIds = new Set<string>([d.id]);
-      simLinks.forEach((l: any) => {
-        const sId = typeof l.source === "object" ? l.source.id : l.source;
-        const tId = typeof l.target === "object" ? l.target.id : l.target;
-        if (sId === d.id) neighborIds.add(tId);
-        if (tId === d.id) neighborIds.add(sId);
-      });
-
-      node.attr("opacity", (n) => (neighborIds.has(n.id) ? 1 : 0.2));
-      link.attr("opacity", (l: any) => {
-        const sId = typeof l.source === "object" ? l.source.id : l.source;
-        const tId = typeof l.target === "object" ? l.target.id : l.target;
-        return sId === d.id || tId === d.id ? 1 : 0.1;
-      });
     });
 
     node.on("mouseleave", () => {
       setHoveredNodeId(null);
-      node.attr("opacity", 1);
-      link.attr("opacity", 0.8);
     });
 
-    svg.on("click", () => {
-      onSelectNode(null);
-    });
-
-    // Simulation Tick
+    // Tick Handler
     simulation.on("tick", () => {
       link
         .attr("x1", (d: any) => d.source.x)
@@ -473,11 +489,10 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     highlightedPatternLinkIds,
   ]);
 
-  // Zoom control handlers
-  const handleZoom = (factor: number) => {
+  const handleZoom = (scaleFactor: number) => {
     if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
-    svg.transition().duration(300).call(d3.zoom<SVGSVGElement, unknown>().scaleBy, factor);
+    svg.transition().duration(250).call(d3.zoom<SVGSVGElement, unknown>().scaleBy as any, scaleFactor);
   };
 
   const handleResetZoom = () => {
@@ -487,8 +502,11 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     const svg = d3.select(svgRef.current);
     svg
       .transition()
-      .duration(400)
-      .call(d3.zoom<SVGSVGElement, unknown>().transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(0.85));
+      .duration(350)
+      .call(
+        d3.zoom<SVGSVGElement, unknown>().transform as any,
+        d3.zoomIdentity.translate(width / 2, height / 2).scale(0.85)
+      );
   };
 
   const toggleTypeFilter = (type: EntityType) => {
@@ -511,12 +529,12 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
               placeholder="Filter canvas nodes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-slate-950 border border-slate-700/80 text-slate-200 text-xs rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 w-44 sm:w-52"
+              className="bg-slate-950 border border-slate-700/80 text-slate-200 text-xs rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 w-36 sm:w-48"
             />
           </div>
 
           {/* Sizing Metric Selector */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px]">
+          <div className="hidden sm:flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px]">
             <span className="text-slate-400 font-mono font-medium px-1.5">Size:</span>
             <button
               onClick={() => setSizingMetric("betweenness")}
@@ -525,7 +543,6 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                   ? "bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30"
                   : "text-slate-400 hover:text-slate-200"
               }`}
-              title="Betweenness Centrality: Pinpoints Kingpins controlling communications"
             >
               Betweenness
             </button>
@@ -536,54 +553,42 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                   ? "bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30"
                   : "text-slate-400 hover:text-slate-200"
               }`}
-              title="Degree Centrality: Call Hubs"
             >
               Degree
             </button>
-            <button
-              onClick={() => setSizingMetric("risk")}
-              className={`px-2 py-0.5 rounded-md font-medium transition-colors ${
-                sizingMetric === "risk"
-                  ? "bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Risk
-            </button>
           </div>
 
-          {/* Color Mode Selector */}
+          {/* Category Filter Toggle */}
           <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-[11px]">
-            <span className="text-slate-400 font-mono font-medium px-1.5">Color:</span>
             <button
-              onClick={() => setColorMode("community")}
+              onClick={() => setSelectedCategory("ALL")}
               className={`px-2 py-0.5 rounded-md font-medium ${
-                colorMode === "community"
-                  ? "bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30"
-                  : "text-slate-400 hover:text-slate-200"
+                selectedCategory === "ALL"
+                  ? "bg-indigo-500/20 text-indigo-300 font-semibold"
+                  : "text-slate-400"
               }`}
             >
-              Factions
+              All
             </button>
             <button
-              onClick={() => setColorMode("type")}
+              onClick={() => setSelectedCategory("EVIDENCE")}
               className={`px-2 py-0.5 rounded-md font-medium ${
-                colorMode === "type"
-                  ? "bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30"
-                  : "text-slate-400 hover:text-slate-200"
+                selectedCategory === "EVIDENCE"
+                  ? "bg-amber-500/20 text-amber-300 font-semibold"
+                  : "text-slate-400"
               }`}
             >
-              Type
+              Evidence Only
             </button>
             <button
-              onClick={() => setColorMode("risk")}
+              onClick={() => setSelectedCategory("INVESTIGATOR_KNOWLEDGE")}
               className={`px-2 py-0.5 rounded-md font-medium ${
-                colorMode === "risk"
-                  ? "bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30"
-                  : "text-slate-400 hover:text-slate-200"
+                selectedCategory === "INVESTIGATOR_KNOWLEDGE"
+                  ? "bg-purple-500/20 text-purple-300 font-semibold"
+                  : "text-slate-400"
               }`}
             >
-              Threat Heat
+              Hypotheses
             </button>
           </div>
 
@@ -606,7 +611,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           {/* Quick Target Chips */}
           <div className="hidden lg:flex items-center gap-1.5 bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-xl">
             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider px-1.5 font-bold">
-              Quick Focus:
+              Focus:
             </span>
             {keyTargets.map((target) => (
               <button
@@ -698,115 +703,72 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                     <span className={isSelected ? item.color : "text-slate-500"}>
                       {item.label}
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {nodes.filter((n) => n.type === item.type).length}
-                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Min Threat Score Slider */}
-          <div className="space-y-2">
+          {/* Review State Filter */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+              Investigator Review Status
+            </span>
+            <div className="grid grid-cols-3 gap-1">
+              <button
+                onClick={() => setSelectedReviewState("ALL")}
+                className={`py-1 rounded text-[10px] font-mono font-semibold ${
+                  selectedReviewState === "ALL"
+                    ? "bg-slate-700 text-white"
+                    : "bg-slate-950 text-slate-400 border border-slate-800"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setSelectedReviewState("CONFIRMED")}
+                className={`py-1 rounded text-[10px] font-mono font-semibold ${
+                  selectedReviewState === "CONFIRMED"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-slate-950 text-slate-400 border border-slate-800"
+                }`}
+              >
+                Confirmed
+              </button>
+              <button
+                onClick={() => setSelectedReviewState("NEEDS_REVIEW")}
+                className={`py-1 rounded text-[10px] font-mono font-semibold ${
+                  selectedReviewState === "NEEDS_REVIEW"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                    : "bg-slate-950 text-slate-400 border border-slate-800"
+                }`}
+              >
+                Needs Review
+              </button>
+            </div>
+          </div>
+
+          {/* Minimum Risk Threshold Slider */}
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-400">Min Threat Score:</span>
-              <span className="font-bold text-amber-400">{minRisk}/100</span>
+              <span className="text-slate-400">Min Threat Risk:</span>
+              <span className="text-amber-400 font-bold">{minRisk} / 100</span>
             </div>
             <input
               type="range"
-              min="0"
-              max="95"
-              step="5"
+              min={0}
+              max={95}
+              step={5}
               value={minRisk}
-              onChange={(e) => setMinRisk(Number(e.target.value))}
-              className="w-full accent-amber-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
+              onChange={(e) => setMinRisk(parseInt(e.target.value))}
+              className="w-full accent-amber-500 bg-slate-950 h-1.5 rounded-lg cursor-pointer"
             />
-          </div>
-
-          {/* Kingpins Only Switch */}
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-xs text-slate-300 font-medium">Isolate Kingpins Only</span>
-            <button
-              onClick={() => setOnlyKingpins(!onlyKingpins)}
-              className={`w-10 h-5 rounded-full transition-colors relative p-0.5 ${
-                onlyKingpins ? "bg-amber-500" : "bg-slate-800"
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-slate-950 transition-transform ${
-                  onlyKingpins ? "translate-x-5" : "translate-x-0"
-                }`}
-              ></div>
-            </button>
           </div>
         </div>
       )}
 
-      {/* 2. SVG Canvas */}
-      <svg ref={svgRef} className="w-full h-full flex-1 cursor-grab active:cursor-grabbing" />
-
-      {/* 3. Bottom Floating Legend & Path Tracer Banner */}
-      <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
-        {/* Shortest Path Notification */}
-        {shortestPath && (
-          <div className="pointer-events-auto bg-amber-950/90 border border-amber-500/50 p-3 rounded-xl text-xs text-amber-200 shadow-2xl max-w-md backdrop-blur-md flex items-start gap-2.5">
-            <Share2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-amber-300">
-                Shortest Proxy Chain ({shortestPath.totalHops} Hops)
-              </p>
-              <p className="text-[11px] text-amber-200/90 leading-relaxed mt-0.5">
-                {shortestPath.summary}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Legend */}
-        <div className="pointer-events-auto bg-slate-900/90 backdrop-blur-md p-2.5 px-3.5 rounded-xl border border-slate-800 shadow-2xl flex flex-wrap items-center gap-3 text-[11px] text-slate-300">
-          <span className="font-mono font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-            Node Entity Types:
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span> Person
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-400"></span> Phone / SIM
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Bank / UPI
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Safehouse
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span> Vehicle
-          </span>
-          <span className="flex items-center gap-1.5 font-mono text-amber-400 font-bold">
-            <span className="w-2.5 h-2.5 rounded-full border-2 border-amber-400 bg-transparent animate-spin"></span> Kingpin / Bottleneck
-          </span>
-        </div>
-      </div>
-
-      {/* 4. Bottom Right Canvas Metrics HUD */}
-      <div className="absolute bottom-4 right-4 z-20 pointer-events-none">
-        <div className="pointer-events-auto bg-slate-900/90 backdrop-blur-md px-3 py-2 rounded-xl border border-slate-800 shadow-2xl flex items-center gap-4 text-xs font-mono text-slate-400">
-          <div>
-            <span className="text-slate-400">VIS: </span>
-            <span className="text-slate-200 font-bold">{filteredNodes.length}</span>
-            <span className="text-slate-400">/{nodes.length} Nodes</span>
-          </div>
-          <div>
-            <span className="text-slate-400">LINKS: </span>
-            <span className="text-slate-200 font-bold">{filteredLinks.length}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>FORCE D3 ACTIVE</span>
-          </div>
-        </div>
-      </div>
+      {/* Main SVG Visualization Canvas */}
+      <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
     </div>
   );
 };
