@@ -35,6 +35,118 @@ export type AIProcessingEngine =
   | "GROQ_LPU"
   | "GEMINI_37";
 
+// Multi-Investigator RBAC
+export type UserRole =
+  | "LEAD_INVESTIGATOR"
+  | "INTEL_ANALYST"
+  | "CYBER_FORENSIC"
+  | "LEGAL_MAGISTRATE";
+
+export interface InvestigatorProfile {
+  id: string;
+  name: string;
+  badgeNumber: string;
+  role: UserRole;
+  rank: string;
+  department: string;
+  avatarColor: string;
+  status: "ACTIVE_DUTY" | "IN_FIELD" | "COURT_HEARING";
+  currentActivity?: string;
+  permissions: {
+    canConfirmEvidence: boolean;
+    canRejectEvidence: boolean;
+    canSignDossier: boolean;
+    canAddHypothesis: boolean;
+    canIngestData: boolean;
+    canExportData: boolean;
+    canEditGraph: boolean;
+  };
+}
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  officerId?: string;
+  officerName?: string;
+  officerRole?: UserRole;
+  officerRank?: string;
+  user?: string;
+  userRank?: string;
+  action?: string;
+  actionType?:
+    | "CONFIRM_ENTITY"
+    | "REJECT_ENTITY"
+    | "CONFIRM_RELATION"
+    | "REJECT_RELATION"
+    | "ADD_HYPOTHESIS"
+    | "INGEST_EVIDENCE"
+    | "ADD_OFFICER_NOTE"
+    | "GENERATE_DOSSIER"
+    | "SEAL_CASE_EXHIBIT"
+    | "SWITCH_ROLE"
+    | string;
+  targetType?: "NODE" | "LINK" | "EXHIBIT" | "CASE" | "DOSSIER" | string;
+  targetId?: string;
+  objectId?: string;
+  targetLabel?: string;
+  details: string;
+  digitalHash?: string; // SHA-256 tamper-evident digest
+  ipAddress?: string;
+}
+
+// Geospatial & GIS Forensic Types
+export interface CellTowerSector {
+  towerId: string;
+  towerName: string;
+  lat: number;
+  lng: number;
+  azimuthDeg: number; // 0 to 360 degrees
+  beamWidthDeg: number; // typically 60 - 120 degrees
+  radiusMeters: number; // typically 500m - 3000m
+  operator: string;
+  activeCallsCount: number;
+  carrierFrequencies?: string;
+}
+
+export interface GeofenceZone {
+  id: string;
+  name: string;
+  category: "RED_ALERT" | "SAFEHOUSE" | "BORDER_EXIT" | "HAWALA_HUB";
+  center: { lat: number; lng: number };
+  radiusMeters: number;
+  polygonCoords?: Array<[number, number]>;
+  activeSuspectsInside: string[];
+  alertTriggered: boolean;
+}
+
+export interface SuspectTrajectoryPoint {
+  id: string;
+  suspectId: string;
+  suspectName: string;
+  timestamp: string;
+  lat: number;
+  lng: number;
+  locationLabel: string;
+  speedKmh?: number;
+  activityType: "CALL" | "FINANCIAL" | "SURVEILLANCE" | "VEHICLE_ANPR";
+  towerAzimuth?: number;
+}
+
+// Streaming Chunked Ingestion
+export interface UploadChunkProgress {
+  fileId: string;
+  fileName: string;
+  totalBytes: number;
+  uploadedBytes: number;
+  chunkIndex: number;
+  totalChunks: number;
+  speedMBps: number;
+  progressPct: number;
+  sha256Checksum: string;
+  status: "IDLE" | "STREAMING" | "COMPUTING_HASH" | "EXTRACTING" | "COMPLETE" | "ERROR";
+  errorMessage?: string;
+}
+
 export interface GeoLocation {
   lat: number;
   lng: number;
@@ -186,16 +298,6 @@ export interface InvestigatorHypothesis {
   status: "ACTIVE" | "VALIDATED" | "DISPROVEN" | "SUSPENDED";
   associatedSuspectIds: string[];
   createdAt: string;
-}
-
-export interface AuditLogEntry {
-  id: string;
-  user: string;
-  userRank: string;
-  action: string; // e.g. "CONFIRMED_ENTITY", "REJECTED_LINK", "INGESTED_BULK_EVIDENCE", "ADDED_HYPOTHESIS"
-  objectId: string;
-  timestamp: string;
-  details: string;
 }
 
 export interface FIRRecord {

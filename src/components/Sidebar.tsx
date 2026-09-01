@@ -17,6 +17,8 @@ import {
   Plus,
   X,
   PlusCircle,
+  ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { CaseDataset } from "../types";
 
@@ -24,8 +26,8 @@ interface SidebarProps {
   currentCase: CaseDataset;
   allCases: CaseDataset[];
   onSelectCase: (c: CaseDataset) => void;
-  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest";
-  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest") => void;
+  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac";
+  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac") => void;
   onOpenCopilot: () => void;
   onOpenDossier: () => void;
   onOpenNewCase: () => void;
@@ -104,9 +106,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: "NLP AI",
       badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     },
+    {
+      id: "rbac" as const,
+      label: "RBAC & Concurrency",
+      subtitle: "Multi-Officer & Chain-of-Custody",
+      icon: ShieldCheck,
+      badge: "4 Active",
+      badgeColor: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    },
   ];
 
-  const handleNavClick = (tabId: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest") => {
+  const handleNavClick = (tabId: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac") => {
     onTabChange(tabId);
     if (onCloseMobile) {
       onCloseMobile();

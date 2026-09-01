@@ -23,6 +23,8 @@ import {
   GARUDA_INTEL,
   SHADOWVAULT_NODES,
   SHADOWVAULT_LINKS,
+  INVESTIGATOR_PROFILES,
+  INITIAL_AUDIT_LOGS,
 } from "./data/mockDatasets";
 import { computeGraphAnalytics, detectSuspiciousPatterns } from "./services/graphEngine";
 import { Sidebar } from "./components/Sidebar";
@@ -33,6 +35,7 @@ import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
 import { PatternAlerts } from "./components/PatternAlerts";
 import { GeoTimelineView } from "./components/GeoTimelineView";
 import { DataIngestionHub } from "./components/DataIngestionHub";
+import { InvestigatorRbacHub } from "./components/InvestigatorRbacHub";
 import { EntityDetailDrawer } from "./components/EntityDetailDrawer";
 import { RelationshipDetailDrawer } from "./components/RelationshipDetailDrawer";
 import { AddEvidenceModal } from "./components/AddEvidenceModal";
@@ -45,6 +48,10 @@ export default function App() {
   // Case Datasets
   const [allCases, setAllCases] = useState<CaseDataset[]>(SAMPLE_CASES);
   const [currentCase, setCurrentCase] = useState<CaseDataset>(SAMPLE_CASES[0]);
+
+  // Active Multi-Investigator Session & Cryptographic Chain-of-Custody Audit
+  const [currentOfficer, setCurrentOfficer] = useState(INVESTIGATOR_PROFILES[0]);
+  const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
 
   // Case-specific data cache to preserve newly added records across case switching
   const [caseDataMap, setCaseDataMap] = useState<
@@ -91,7 +98,7 @@ export default function App() {
 
   // Active View Tab: Defaults to 'overview' for the command dashboard experience
   const [activeTab, setActiveTab] = useState<
-    "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest"
+    "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac"
   >("overview");
 
   // Sidebar collapse toggle & Mobile drawer toggle
@@ -419,6 +426,7 @@ export default function App() {
           linkCount={links.length}
           kingpinCount={analyzedNodes.filter((n) => n.isKingpinCandidate).length}
           patternCount={detectedPatterns.length}
+          currentOfficer={currentOfficer}
         />
 
         {/* Dynamic Workspace Container */}
@@ -508,6 +516,15 @@ export default function App() {
             <DataIngestionHub
               onIngestExtractedData={handleIngestExtractedData}
               onSwitchToGraph={() => setActiveTab("graph")}
+            />
+          )}
+
+          {/* Module 6: Multi-Investigator Concurrency & RBAC Chain-of-Custody Hub */}
+          {activeTab === "rbac" && (
+            <InvestigatorRbacHub
+              currentOfficer={currentOfficer}
+              onSelectOfficer={setCurrentOfficer}
+              auditLogs={auditLogs}
             />
           )}
         </main>

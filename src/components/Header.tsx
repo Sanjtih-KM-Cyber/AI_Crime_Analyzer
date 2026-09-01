@@ -20,14 +20,14 @@ import {
   Plus,
   Menu,
 } from "lucide-react";
-import { CaseDataset, CrimeNetworkNode } from "../types";
+import { CaseDataset, CrimeNetworkNode, InvestigatorProfile } from "../types";
 
 interface HeaderProps {
   currentCase: CaseDataset;
   allCases: CaseDataset[];
   onSelectCase: (c: CaseDataset) => void;
-  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest";
-  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest") => void;
+  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac";
+  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac") => void;
   onOpenDossier: () => void;
   onOpenCopilot: () => void;
   onOpenNewCase: () => void;
@@ -38,6 +38,7 @@ interface HeaderProps {
   linkCount: number;
   kingpinCount: number;
   patternCount: number;
+  currentOfficer?: InvestigatorProfile;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -56,6 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   linkCount,
   kingpinCount,
   patternCount,
+  currentOfficer,
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,6 +114,8 @@ export const Header: React.FC<HeaderProps> = ({
         return "Geospatial Matrix";
       case "ingest":
         return "Case Ingestion";
+      case "rbac":
+        return "RBAC & Multi-Officer Security";
       default:
         return "Intelligence Workstation";
     }
@@ -198,6 +202,24 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline">New Case</span>
             <span className="sm:hidden text-[11px]">New</span>
           </button>
+
+          {/* Active Officer RBAC Trigger */}
+          {currentOfficer && (
+            <button
+              onClick={() => onTabChange("rbac")}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-mono transition-all active:scale-95"
+              title="Switch Officer Role & View Chain-of-Custody Audit"
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full animate-pulse"
+                style={{ backgroundColor: currentOfficer.avatarColor || "#f59e0b" }}
+              />
+              <span className="hidden md:inline font-semibold text-slate-200">{currentOfficer.name.split(" ")[0]}</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-slate-950 text-amber-400 border border-slate-800">
+                {currentOfficer.role === "LEAD_INVESTIGATOR" ? "SP" : currentOfficer.role === "INTEL_ANALYST" ? "ANALYST" : currentOfficer.role === "CYBER_FORENSIC" ? "FORENSIC" : "LEGAL"}
+              </span>
+            </button>
+          )}
 
           {/* AI Copilot Trigger */}
           <button
