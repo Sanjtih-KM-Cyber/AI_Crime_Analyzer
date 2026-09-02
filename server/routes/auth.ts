@@ -153,8 +153,8 @@ router.post("/request-access", async (req: Request, res: Response) => {
     password,
   } = req.body;
 
-  if (!full_name || !official_id || !official_email || !password || !requested_role) {
-    res.status(400).json({ error: "All required access fields and credentials must be provided." });
+  if (!full_name || !official_id || !official_email || !requested_role) {
+    res.status(400).json({ error: "All required access fields (Full Name, Official ID, Official Email, Role) must be provided." });
     return;
   }
 
@@ -174,9 +174,10 @@ router.post("/request-access", async (req: Request, res: Response) => {
   }
 
   const salt = await bcrypt.genSalt(10);
-  const password_hash = await bcrypt.hash(password, salt);
+  const rawPass = password || crypto.randomBytes(16).toString("hex");
+  const password_hash = await bcrypt.hash(rawPass, salt);
   const userId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
-  const reqId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+  const reqId = `REQ-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
   const now = new Date().toISOString();
 
   // Create User with status PENDING

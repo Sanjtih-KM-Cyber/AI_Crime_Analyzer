@@ -67,11 +67,11 @@ export const authApi = {
     official_id: string;
     official_email: string;
     agency: string;
-    designation: string;
+    designation?: string;
     department: string;
     requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
     reason_for_access: string;
-    password: string;
+    password?: string;
   }) => {
     return request<{ success: boolean; message: string; request_id: string }>("/api/auth/request-access", {
       method: "POST",
