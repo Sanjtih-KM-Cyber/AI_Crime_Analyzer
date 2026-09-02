@@ -21,7 +21,7 @@ export interface DBUser {
   agency: string;
   designation: string;
   department: string;
-  role: "ADMIN" | "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  role: "ADMIN" | "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR" | "INSPECTOR";
   status: "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
   created_at: string;
   approved_by?: string;
@@ -38,7 +38,7 @@ export interface DBAccessRequest {
   agency: string;
   designation: string;
   department: string;
-  requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR";
   reason_for_access: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   submitted_at: string;
@@ -57,7 +57,7 @@ export interface DBCaseAccessRequest {
   user_email: string;
   official_id: string;
   agency: string;
-  user_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  user_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR";
   reason_for_access: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   requested_at: string;
@@ -74,10 +74,55 @@ export interface DBCaseMember {
   user_email: string;
   official_id: string;
   agency: string;
-  role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR" | "INSPECTOR" | "ADMIN";
   status: "ACTIVE" | "INACTIVE";
   assigned_at: string;
   assigned_by?: string;
+}
+
+export interface DBObservation {
+  _id: string;
+  case_id: string;
+  observation_type:
+    | "SUSPECT_SIGHTING"
+    | "LOCATION_SURVEILLANCE"
+    | "VEHICLE_TRACKING"
+    | "FIELD_INTEL_NOTE"
+    | "RELATIONSHIP_OBSERVED";
+  title: string;
+  narrative: string;
+  location_name: string;
+  lat?: number;
+  lng?: number;
+  timestamp: string;
+  officer_id: string;
+  officer_name: string;
+  officer_role: string;
+  officer_badge: string;
+  related_entities: Array<{
+    id: string;
+    label: string;
+    type: string;
+    role_in_observation?: string;
+  }>;
+  observed_relationships?: Array<{
+    source_id: string;
+    target_id: string;
+    relation_type: string;
+    notes?: string;
+  }>;
+  attachments?: Array<{
+    id: string;
+    file_name: string;
+    file_type: string;
+    file_size_formatted: string;
+    sha256: string;
+    media_category: string;
+  }>;
+  status: "SUBMITTED" | "VALIDATED" | "INTEGRATED_IN_CASE";
+  confidence_score: number;
+  tags: string[];
+  created_at: string;
 }
 
 export interface DBEvidence {
@@ -131,6 +176,12 @@ export interface DBRelationship {
   relationType: string;
   category?: string;
   reviewState?: string;
+  provenance?: "FIELD_OBSERVATION" | "FORENSIC_EXTRACTION" | "CDR_TRIANGULATION" | "FINANCIAL_LEDGER" | "MANUAL_INVESTIGATION" | "AI_SUGGESTED";
+  status?: "VERIFIED" | "UNVERIFIED" | "AI_SUGGESTED" | "EXTRACTED";
+  creator_id?: string;
+  creator_name?: string;
+  creator_role?: string;
+  source_record_id?: string;
   weight: number;
   frequency?: number;
   amount?: number;
@@ -202,6 +253,7 @@ class InMemoryDatabase {
   cases: Map<string, any> = new Map();
   case_members: Map<string, DBCaseMember> = new Map();
   evidence: Map<string, DBEvidence> = new Map();
+  observations: Map<string, DBObservation> = new Map();
   entities: Map<string, DBEntity> = new Map();
   relationships: Map<string, DBRelationship> = new Map();
   alerts: Map<string, DBAlert> = new Map();
@@ -228,6 +280,7 @@ async function seedInitialData() {
   const adminPass = await bcrypt.hash("Admin@123", salt);
   const leadPass = await bcrypt.hash("Lead@123", salt);
   const forensicPass = await bcrypt.hash("Forensic@123", salt);
+  const investigatorPass = await bcrypt.hash("Officer@123", salt);
   const pendingPass = await bcrypt.hash("Officer@123", salt);
 
   const demoUsers: DBUser[] = [
@@ -278,6 +331,22 @@ async function seedInitialData() {
       approved_by: "user-admin-01",
       approved_at: "2026-08-07T12:00:00.000Z",
       avatarColor: "#10b981",
+    },
+    {
+      _id: "user-investigator-01",
+      name: "Inspector Devendra Patil",
+      official_id: "DP-FIELD-502",
+      email: "patil@police.gov.in",
+      password_hash: investigatorPass,
+      agency: "Crime Branch CID / Field Interdiction Squad",
+      designation: "Field Inspector / Sighting Lead",
+      department: "Anti-Narcotics & Surveillance Squad",
+      role: "INVESTIGATOR",
+      status: "ACTIVE",
+      created_at: "2026-08-09T08:00:00.000Z",
+      approved_by: "user-admin-01",
+      approved_at: "2026-08-09T09:00:00.000Z",
+      avatarColor: "#3b82f6",
     },
     {
       _id: "user-pending-01",
@@ -377,6 +446,19 @@ async function seedInitialData() {
     },
     {
       _id: "mem-003",
+      case_id: "case-garuda",
+      user_id: "user-investigator-01",
+      user_name: "Inspector Devendra Patil",
+      user_email: "patil@police.gov.in",
+      official_id: "DP-FIELD-502",
+      agency: "Crime Branch CID / Field Interdiction Squad",
+      role: "INVESTIGATOR",
+      status: "ACTIVE",
+      assigned_at: "2026-08-14T09:20:00.000Z",
+      assigned_by: "user-admin-01",
+    },
+    {
+      _id: "mem-004",
       case_id: "case-shadowvault",
       user_id: "user-lead-01",
       user_name: "Vikramaditya Rathore, IPS",
@@ -388,20 +470,55 @@ async function seedInitialData() {
       assigned_at: "2026-08-16T11:00:00.000Z",
       assigned_by: "user-admin-01",
     },
+  ];
+
+  for (const m of initialMembers) {
+    memoryDb.case_members.set(m._id, m);
+  }
+
+  // Seed sample observations
+  const demoObservations: DBObservation[] = [
     {
-      _id: "mem-004",
-      case_id: "case-interstate",
-      user_id: "user-forensic-01",
-      user_name: "Inspector Sameer Deshmukh",
-      user_email: "deshmukh@forensics.gov.in",
-      official_id: "DFS-CYBER-881",
-      agency: "Directorate of Forensic Science",
-      role: "FORENSIC_INVESTIGATOR",
-      status: "ACTIVE",
-      assigned_at: "2026-08-18T14:30:00.000Z",
-      assigned_by: "user-admin-01",
+      _id: "obs-001",
+      case_id: "case-garuda",
+      observation_type: "SUSPECT_SIGHTING",
+      title: "Physical Sighting: Karan Saluja at Vashi Toll Plaza",
+      narrative: "During vehicle interdiction duty, logistics operator Karan Saluja was sighted driving white Fortuner GA-03-K-4411 leading an enclosed container truck MH-04-AZ-8890 heading towards Panvel bypass.",
+      location_name: "Vashi Toll Plaza, Navi Mumbai",
+      lat: 19.055,
+      lng: 72.975,
+      timestamp: "2026-08-14T00:45:00.000Z",
+      officer_id: "user-investigator-01",
+      officer_name: "Inspector Devendra Patil",
+      officer_role: "INVESTIGATOR",
+      officer_badge: "DP-FIELD-502",
+      related_entities: [
+        { id: "suspect-saluja", label: "Karan 'Rider' Saluja", type: "PERSON", role_in_observation: "Driver of escort vehicle" },
+        { id: "veh-ga03k4411", label: "Toyota Fortuner GA-03-K-4411", type: "VEHICLE", role_in_observation: "Escort vehicle" },
+      ],
+      observed_relationships: [
+        { source_id: "suspect-saluja", target_id: "veh-ga03k4411", relation_type: "OWNS", notes: "Direct visual driving confirmation" },
+      ],
+      attachments: [
+        {
+          id: "att-001",
+          file_name: "vashi_toll_dashcam_0045.jpg",
+          file_type: "image/jpeg",
+          file_size_formatted: "2.4 MB",
+          sha256: "sha256:a1b2c3d4e5f678901234567890abcdef1234567890abcdef1234567890abcdef",
+          media_category: "PHOTO",
+        },
+      ],
+      status: "INTEGRATED_IN_CASE",
+      confidence_score: 0.96,
+      tags: ["CONVOY", "VASHI", "VEHICLE_SIGHTING"],
+      created_at: "2026-08-14T01:15:00.000Z",
     },
   ];
+
+  for (const obs of demoObservations) {
+    memoryDb.observations.set(obs._id, obs);
+  }
 
   for (const m of initialMembers) {
     memoryDb.case_members.set(m._id, m);
@@ -751,6 +868,32 @@ export const db = {
       if (!existing) return null;
       const updated = { ...existing, ...updates };
       memoryDb.evidence.set(id, updated);
+      return updated;
+    },
+  },
+
+  observations: {
+    find: async (query: { case_id?: string; officer_id?: string; status?: string } = {}) => {
+      const all = Array.from(memoryDb.observations.values());
+      return all
+        .filter((obs) => {
+          if (query.case_id && obs.case_id !== query.case_id) return false;
+          if (query.officer_id && obs.officer_id !== query.officer_id) return false;
+          if (query.status && obs.status !== query.status) return false;
+          return true;
+        })
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    },
+    findOne: async (id: string) => memoryDb.observations.get(id) || null,
+    insertOne: async (obs: DBObservation) => {
+      memoryDb.observations.set(obs._id, obs);
+      return obs;
+    },
+    updateOne: async (id: string, updates: Partial<DBObservation>) => {
+      const existing = memoryDb.observations.get(id);
+      if (!existing) return null;
+      const updated = { ...existing, ...updates };
+      memoryDb.observations.set(id, updated);
       return updated;
     },
   },

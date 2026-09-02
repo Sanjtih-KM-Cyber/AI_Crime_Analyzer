@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+@keyframes cautionBlink {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.9), 0 0 20px rgba(239, 68, 68, 0.6);
+    filter: brightness(1.2);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 1), 0 0 40px rgba(239, 68, 68, 0.9);
+    filter: brightness(1.5);
+  }
+}
+
+@keyframes mapRadarWave {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.caution-blinking-pin {
+  animation: cautionBlink 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.map-radar-pulse {
+  animation: mapRadarWave 1.8s ease-out infinite;
+}

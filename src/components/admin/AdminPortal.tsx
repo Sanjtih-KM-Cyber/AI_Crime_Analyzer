@@ -46,7 +46,7 @@ export const AdminPortal: React.FC = () => {
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedUserToAssign, setSelectedUserToAssign] = useState<string>("");
-  const [assignedRolesMap, setAssignedRolesMap] = useState<Record<string, "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR">>({});
+  const [assignedRolesMap, setAssignedRolesMap] = useState<Record<string, "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR">>({});
 
   const loadData = async () => {
     setIsLoading(true);
@@ -614,18 +614,19 @@ export const AdminPortal: React.FC = () => {
                             onChange={(e) =>
                               setAssignedRolesMap((prev) => ({
                                 ...prev,
-                                [req._id]: e.target.value as "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR",
+                                [req._id]: e.target.value as "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR",
                               }))
                             }
                             className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-amber-400 font-semibold focus:outline-none"
                           >
                             <option value="LEAD_INVESTIGATOR">LEAD_INVESTIGATOR</option>
                             <option value="FORENSIC_INVESTIGATOR">FORENSIC_INVESTIGATOR</option>
+                            <option value="INVESTIGATOR">INVESTIGATOR</option>
                           </select>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleApproveRequest(req._id, req.requested_role)}
+                            onClick={() => handleApproveRequest(req._id, assignedRolesMap[req._id] || req.requested_role)}
                             className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-all shadow-md active:scale-95"
                           >
                             Approve

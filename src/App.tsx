@@ -31,6 +31,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { LoginView } from "./components/auth/LoginView";
 import { AdminPortal } from "./components/admin/AdminPortal";
 import { ForensicPortal } from "./components/forensic/ForensicPortal";
+import { InvestigatorPortal } from "./components/investigator/InvestigatorPortal";
 import { MyCasesView } from "./components/cases/MyCasesView";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
@@ -151,7 +152,7 @@ function WorkstationApp() {
 
   // Active View Tab: Defaults to 'overview' for the command dashboard experience
   const [activeTab, setActiveTab] = useState<
-    "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac"
+    "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest"
   >("overview");
 
   // Sidebar collapse toggle & Mobile drawer toggle
@@ -497,16 +498,33 @@ function WorkstationApp() {
     return <ForensicPortal />;
   }
 
+  // 3. Role = INVESTIGATOR / INSPECTOR -> Render Field Investigator Portal
+  if (user.role === "INVESTIGATOR" || (user.role as string) === "INSPECTOR") {
+    return <InvestigatorPortal />;
+  }
+
   // 3. User requested to switch/browse case workspaces
   if (isCasesViewOpen) {
     return (
-      <MyCasesView
-        allSystemCases={allCases}
-        onSelectCase={(selectedCase) => {
-          handleSelectCase(selectedCase);
-          setIsCasesViewOpen(false);
-        }}
-      />
+      <>
+        <MyCasesView
+          allSystemCases={allCases}
+          activeCaseId={currentCase?.id}
+          onCreateNewCase={() => setIsCreateCaseOpen(true)}
+          onClose={() => setIsCasesViewOpen(false)}
+          onSelectCase={(selectedCase) => {
+            handleSelectCase(selectedCase);
+            setIsCasesViewOpen(false);
+          }}
+        />
+        {/* Register / Create New Case Modal inside Workspaces View */}
+        <CreateCaseModal
+          isOpen={isCreateCaseOpen}
+          onClose={() => setIsCreateCaseOpen(false)}
+          onCreateCase={handleCreateCase}
+          existingCases={allCases}
+        />
+      </>
     );
   }
 
@@ -547,7 +565,9 @@ function WorkstationApp() {
         onOpenCopilot={() => setIsCopilotOpen(true)}
         onOpenDossier={() => setIsDossierOpen(true)}
         onOpenNewCase={() => setIsCreateCaseOpen(true)}
+        onOpenArchive={() => setIsArchiveOpen(true)}
         onOpenMyCases={() => setIsCasesViewOpen(true)}
+        onLogout={logout}
         nodeCount={analyzedNodes.length}
         kingpinCount={analyzedNodes.filter((n) => n.isKingpinCandidate).length}
         cutVertexCount={cutVertices.length}
@@ -600,7 +620,6 @@ function WorkstationApp() {
               onOpenCopilot={() => setIsCopilotOpen(true)}
               onOpenDossier={() => setIsDossierOpen(true)}
               onOpenNewCase={() => setIsCreateCaseOpen(true)}
-              onOpenAddEvidence={() => setIsAddEvidenceOpen(true)}
               onOpenArchive={() => setIsArchiveOpen(true)}
             />
           )}
@@ -671,14 +690,7 @@ function WorkstationApp() {
             <DataIngestionHub
               onIngestExtractedData={handleIngestExtractedData}
               onSwitchToGraph={() => setActiveTab("graph")}
-            />
-          )}
-
-          {/* Module 6: Multi-Investigator Concurrency & RBAC Chain-of-Custody Hub */}
-          {activeTab === "rbac" && (
-            <InvestigatorRbacHub
-              currentOfficer={currentOfficer}
-              auditLogs={auditLogs}
+              onOpenAddEvidence={() => setIsAddEvidenceOpen(true)}
             />
           )}
         </main>
@@ -740,6 +752,7 @@ function WorkstationApp() {
       <AiCopilotDrawer
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
+        caseId={currentCase?.id || "case-garuda"}
         nodes={analyzedNodes}
         links={links}
         patterns={detectedPatterns}

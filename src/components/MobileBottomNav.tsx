@@ -10,8 +10,8 @@ import {
 } from "lucide-react";
 
 interface MobileBottomNavProps {
-  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac";
-  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac") => void;
+  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest";
+  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest") => void;
   nodeCount: number;
   patternCount: number;
   onOpenNewCase: () => void;

@@ -72,9 +72,11 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
   onClose,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [importStatus, setImportStatus] = useState<{
     success?: boolean;
     message?: string;
+    caseName?: string;
   } | null>(null);
 
   if (!isOpen) return null;
@@ -113,11 +115,7 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Handle upload & parsing of imported archive file
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processJsonFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -125,13 +123,14 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
         const parsed: CaseArchivePayload = JSON.parse(content);
 
         if (!parsed.caseMetadata || !parsed.graphData || !parsed.graphData.nodes) {
-          throw new Error("Invalid format: Missing essential case or graph data.");
+          throw new Error("Invalid archive schema: Missing essential caseMetadata or graphData.nodes.");
         }
 
         onImportArchive(parsed);
         setImportStatus({
           success: true,
-          message: `Successfully loaded Case "${parsed.caseMetadata.name}" (${parsed.graphData.nodes.length} entities, ${parsed.graphData.links.length} relations).`,
+          caseName: parsed.caseMetadata.name,
+          message: `Successfully loaded Case "${parsed.caseMetadata.name}" (${parsed.graphData.nodes.length} entities, ${parsed.graphData.links.length} relations, ${(parsed.evidenceRecords.firs || []).length} FIRs, ${(parsed.evidenceRecords.cdrs || []).length} CDR records).`,
         });
       } catch (err: any) {
         setImportStatus({
@@ -141,6 +140,31 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
       }
     };
     reader.readAsText(file);
+  };
+
+  // Handle upload & parsing of imported archive file
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processJsonFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processJsonFile(file);
+    }
   };
 
   return (
@@ -154,7 +178,7 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-100">
-                Case Archive & Offline Backup Hub
+                Case Archive & Backup Hub
               </h3>
               <p className="text-[11px] text-slate-400">
                 Export and import sealed case files for multi-workstation transfer
@@ -206,7 +230,7 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
 
               <button
                 onClick={handleExportCaseArchive}
-                className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-600/20"
+                className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-600/20 active:scale-95"
               >
                 <Download className="w-4 h-4" />
                 <span>Save Archive (.json)</span>
@@ -214,14 +238,23 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
             </div>
 
             {/* Import Column */}
-            <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl flex flex-col justify-between space-y-3">
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`p-4 bg-slate-950 border rounded-xl flex flex-col justify-between space-y-3 transition-colors ${
+                isDragging
+                  ? "border-amber-500 bg-amber-500/5"
+                  : "border-slate-800"
+              }`}
+            >
               <div>
                 <div className="flex items-center gap-2 text-slate-200 font-bold mb-1">
                   <Upload className="w-4 h-4 text-cyan-400" />
                   <span>Import Case File</span>
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Load a previously exported investigation file or transferred case from another offline police workstation.
+                  Drop a <code className="text-cyan-400">.json</code> file or click below to restore case data from an offline backup.
                 </p>
               </div>
 
@@ -235,7 +268,7 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2.5 px-3 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-cyan-600/20"
+                className="w-full py-2.5 px-3 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-cyan-600/20 active:scale-95"
               >
                 <Upload className="w-4 h-4" />
                 <span>Load File (.json)</span>
@@ -246,18 +279,28 @@ export const CaseArchiveManager: React.FC<CaseArchiveManagerProps> = ({
           {/* Import Status Alert */}
           {importStatus && (
             <div
-              className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs ${
+              className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
                 importStatus.success
                   ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
                   : "bg-rose-500/10 border-rose-500/30 text-rose-300"
               }`}
             >
-              {importStatus.success ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="flex items-center gap-2.5">
+                {importStatus.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{importStatus.message}</span>
+              </div>
+              {importStatus.success && (
+                <button
+                  onClick={onClose}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 transition-colors"
+                >
+                  Explore Restored Case
+                </button>
               )}
-              <span>{importStatus.message}</span>
             </div>
           )}
 

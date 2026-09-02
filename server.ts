@@ -9,6 +9,7 @@ import authRouter from "./server/routes/auth";
 import adminRouter from "./server/routes/admin";
 import casesRouter from "./server/routes/cases";
 import copilotRouter from "./server/routes/copilot";
+import investigatorRouter from "./server/routes/investigator";
 import { extractEntitiesWithGemini, generateDossierWithGemini } from "./src/services/nlpExtractor";
 
 dotenv.config();
@@ -28,6 +29,7 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/cases", casesRouter);
+app.use("/api/cases", investigatorRouter);
 app.use("/api/copilot", copilotRouter);
 app.use("/api/cases", copilotRouter); // handles /api/cases/:caseId/query
 

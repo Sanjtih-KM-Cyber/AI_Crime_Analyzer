@@ -36,11 +36,13 @@ interface DataIngestionHubProps {
     financials?: FinancialRecord[]
   ) => void;
   onSwitchToGraph: () => void;
+  onOpenAddEvidence?: () => void;
 }
 
 export const DataIngestionHub: React.FC<DataIngestionHubProps> = ({
   onIngestExtractedData,
   onSwitchToGraph,
+  onOpenAddEvidence,
 }) => {
   const [activeTab, setActiveTab] = useState<"fir" | "cdr" | "financial" | "manual">("fir");
 
@@ -235,6 +237,17 @@ munshi.trade@oksbi,Rameshwar Joshi,49201928371,Goa Safehouse Logistics,450000,20
             </p>
           </div>
         </div>
+
+        {/* Evidence Ingestion Bulk Modal Trigger */}
+        {onOpenAddEvidence && (
+          <button
+            onClick={onOpenAddEvidence}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 font-bold text-xs transition-all shadow-lg shadow-amber-500/20 active:scale-95 shrink-0"
+          >
+            <Upload className="w-4 h-4" />
+            <span>+ Ingest Evidence (15GB Max)</span>
+          </button>
+        )}
       </div>
 
       {/* Tabs Bar */}

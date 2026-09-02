@@ -35,13 +35,29 @@ export type AIProcessingEngine =
   | "GROQ_LPU"
   | "GEMINI_37";
 
-// Core 3 Application Roles strictly per specifications
+// Core 4 Application Roles strictly per specifications (no Intelligence Analyst role)
 export type UserRole =
   | "ADMIN"
   | "LEAD_INVESTIGATOR"
-  | "FORENSIC_INVESTIGATOR";
+  | "FORENSIC_INVESTIGATOR"
+  | "INVESTIGATOR"
+  | "INSPECTOR";
 
 export type UserStatus = "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
+
+export type RelationshipProvenance =
+  | "FIELD_OBSERVATION"
+  | "FORENSIC_EXTRACTION"
+  | "CDR_TRIANGULATION"
+  | "FINANCIAL_LEDGER"
+  | "MANUAL_INVESTIGATION"
+  | "AI_SUGGESTED";
+
+export type RelationshipStatus =
+  | "VERIFIED"
+  | "UNVERIFIED"
+  | "AI_SUGGESTED"
+  | "EXTRACTED";
 
 export interface UserAccount {
   _id: string;
@@ -58,6 +74,16 @@ export interface UserAccount {
   approved_at?: string;
   last_login?: string;
   avatarColor?: string;
+  permissions?: {
+    canSignDossier: boolean;
+    canConfirmEvidence: boolean;
+    canRejectEvidence: boolean;
+    canAddHypothesis: boolean;
+    canIngestData: boolean;
+    canExportData: boolean;
+    canEditGraph?: boolean;
+    canAccessCopilot?: boolean;
+  };
 }
 
 export interface AccessRequest {
@@ -68,7 +94,7 @@ export interface AccessRequest {
   agency: string;
   designation: string;
   department: string;
-  requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR";
   reason_for_access: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   submitted_at: string;
@@ -101,13 +127,57 @@ export interface CaseAccessRequest {
   user_email: string;
   official_id: string;
   agency: string;
-  user_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  user_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR";
   reason_for_access: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   requested_at: string;
   reviewed_by?: string;
   reviewed_at?: string;
   review_notes?: string;
+}
+
+export interface FieldObservation {
+  id: string;
+  caseId: string;
+  observationType:
+    | "SUSPECT_SIGHTING"
+    | "LOCATION_SURVEILLANCE"
+    | "VEHICLE_TRACKING"
+    | "FIELD_INTEL_NOTE"
+    | "RELATIONSHIP_OBSERVED";
+  title: string;
+  narrative: string;
+  locationName: string;
+  lat?: number;
+  lng?: number;
+  timestamp: string;
+  officerId: string;
+  officerName: string;
+  officerRole: UserRole;
+  officerBadge: string;
+  relatedEntities: Array<{
+    id: string;
+    label: string;
+    type: EntityType;
+    roleInObservation?: string;
+  }>;
+  observedRelationships?: Array<{
+    sourceId: string;
+    targetId: string;
+    relationType: RelationType;
+    notes?: string;
+  }>;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    fileType: string;
+    fileSizeFormatted: string;
+    sha256: string;
+    mediaCategory: "PHOTO" | "AUDIO" | "VIDEO" | "DOCUMENT";
+  }>;
+  status: "SUBMITTED" | "VALIDATED" | "INTEGRATED_IN_CASE";
+  confidenceScore: number;
+  tags: string[];
 }
 
 export type EvidenceLifecycleStatus =
@@ -346,6 +416,13 @@ export interface CrimeNetworkLink {
   relationType: RelationType;
   category?: InformationCategory; // EVIDENCE vs INFERENCE vs HYPOTHESIS
   reviewState?: ReviewState; // CONFIRMED vs NEEDS_REVIEW vs REJECTED vs UNCERTAIN
+  provenance?: RelationshipProvenance;
+  status?: RelationshipStatus;
+  creatorId?: string;
+  creatorName?: string;
+  creatorRole?: UserRole;
+  sourceRecordId?: string;
+  caseId?: string;
   weight: number; // strength or frequency of link
   frequency?: number; // e.g. call count, transaction count
   amount?: number; // for financial transfers in INR
@@ -483,11 +560,28 @@ export interface SyndicateCommunity {
   keyLeaderId?: string;
 }
 
+export interface ShortestPathStep {
+  fromId: string;
+  fromLabel: string;
+  fromType: EntityType;
+  toId: string;
+  toLabel: string;
+  toType: EntityType;
+  linkId?: string;
+  relationType: string;
+  summary: string;
+  isFinancial?: boolean;
+  isTelecom?: boolean;
+}
+
 export interface ShortestPathResult {
   path: string[];
+  hops?: string[]; // Alias for backwards compatibility
   links: string[];
   totalHops: number;
   summary: string;
+  steps?: ShortestPathStep[];
+  trailType?: "GENERAL" | "HAWALA_FINANCIAL" | "TELECOM_CDR";
 }
 
 export interface GraphFilterState {

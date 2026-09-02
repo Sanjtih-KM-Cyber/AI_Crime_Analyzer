@@ -150,7 +150,7 @@ router.post("/:caseId/request-access", async (req: AuthenticatedRequest, res: Re
     user_email: user.email,
     official_id: user.official_id,
     agency: user.agency,
-    user_role: user.role as "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR",
+    user_role: user.role as "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR",
     reason_for_access: reason_for_access || `Operational requirement for ${user.role.replace("_", " ")} duties under ${user.agency}.`,
     status: "PENDING" as const,
     requested_at: now,
@@ -212,6 +212,7 @@ router.get("/:caseId/state", requireCaseMembership, async (req: AuthenticatedReq
     cdrs,
     financials,
     intels,
+    observations,
   ] = await Promise.all([
     db.entities.find({ case_id: caseId }),
     db.relationships.find({ case_id: caseId }),
@@ -223,6 +224,7 @@ router.get("/:caseId/state", requireCaseMembership, async (req: AuthenticatedReq
     db.cdrs.find(caseId),
     db.financials.find(caseId),
     db.intels.find(caseId),
+    db.observations.find({ case_id: caseId }),
   ]);
 
   // Format evidence files for frontend
@@ -251,6 +253,7 @@ router.get("/:caseId/state", requireCaseMembership, async (req: AuthenticatedReq
     nodes: entities,
     links: relationships,
     evidenceFiles: formattedEvidence,
+    observations,
     members,
     auditLogs,
     events,

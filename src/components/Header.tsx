@@ -28,8 +28,8 @@ interface HeaderProps {
   currentCase: CaseDataset;
   allCases: CaseDataset[];
   onSelectCase: (c: CaseDataset) => void;
-  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac";
-  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest" | "rbac") => void;
+  activeTab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest";
+  onTabChange: (tab: "overview" | "graph" | "analytics" | "patterns" | "geo" | "ingest") => void;
   onOpenDossier: () => void;
   onOpenCopilot: () => void;
   onOpenNewCase: () => void;
@@ -122,8 +122,6 @@ export const Header: React.FC<HeaderProps> = ({
         return "Geospatial Matrix";
       case "ingest":
         return "Case Ingestion";
-      case "rbac":
-        return "RBAC & Multi-Officer Security";
       default:
         return "Intelligence Workstation";
     }
@@ -132,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       <header className="h-14 sm:h-16 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-30 shrink-0 select-none">
-        {/* Left: Mobile Menu Trigger + Breadcrumb */}
+        {/* Left: Mobile Menu Trigger + Tab Title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile Hamburger Button */}
           <button
@@ -143,30 +141,9 @@ export const Header: React.FC<HeaderProps> = ({
             <Menu className="w-4 h-4" />
           </button>
 
-          {/* Operation Selector Pill */}
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <div className="relative flex items-center">
-              <select
-                value={currentCase.id}
-                onChange={(e) => {
-                  const target = allCases.find((c) => c.id === e.target.value);
-                  if (target) onSelectCase(target);
-                }}
-                className="appearance-none bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-[11px] sm:text-xs font-bold pl-2 sm:pl-2.5 pr-6 sm:pr-7 py-1 rounded-lg uppercase tracking-wider cursor-pointer hover:bg-amber-500/15 transition-colors focus:outline-none focus:ring-1 focus:ring-amber-500 max-w-[120px] sm:max-w-[180px] truncate"
-                title={`Active: ${currentCase.name}`}
-              >
-                {allCases.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-slate-900 text-slate-100 font-sans normal-case">
-                    {c.codeName}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3 h-3 text-amber-400/70 absolute right-1.5 sm:right-2 pointer-events-none" />
-            </div>
-
-            <span className="text-slate-700 text-xs sm:text-sm">/</span>
-
-            <h1 className="text-xs sm:text-sm md:text-base font-bold text-slate-100 tracking-tight truncate max-w-[110px] sm:max-w-none">
+          {/* Clean Tab / Workstation Title */}
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-sm sm:text-base md:text-lg font-bold text-slate-100 tracking-tight truncate">
               {getTabTitle()}
             </h1>
           </div>
@@ -189,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Right: Operational Actions, + New Case, Copilot, Dossier */}
+        {/* Right: Search (Mobile) + My Workspaces Button */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Mobile Search Button */}
           <button
@@ -200,94 +177,17 @@ export const Header: React.FC<HeaderProps> = ({
             <Search className="w-4 h-4" />
           </button>
 
-          {/* Switch Case / My Workspaces Button */}
+          {/* Switch Case / My Workspaces Button (Primary action in header) */}
           {onOpenMyCases && (
             <button
               onClick={onOpenMyCases}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition-all active:scale-95"
+              className="flex items-center gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-700/80 hover:border-amber-500/40 text-slate-200 text-xs font-semibold transition-all shadow-sm active:scale-95 group"
               title="View All Authorized Operations & Request Case Access"
             >
-              <FolderGit2 className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">My Workspaces</span>
+              <FolderGit2 className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span>My Workspaces</span>
             </button>
           )}
-
-          {/* + New Case Button (PROMINENT) */}
-          <button
-            onClick={onOpenNewCase}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/10 active:scale-95"
-            title="Create New Case / Operation"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            <span className="hidden sm:inline">New Case</span>
-            <span className="sm:hidden text-[11px]">New</span>
-          </button>
-
-          {/* Offline Case Archive Export/Import Trigger */}
-          {onOpenArchive && (
-            <button
-              onClick={onOpenArchive}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-700 text-amber-400 text-xs font-semibold transition-all active:scale-95"
-              title="Export / Import Case Archive File (.json)"
-            >
-              <FolderArchive className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Archive / Backup</span>
-            </button>
-          )}
-
-          {/* Active Officer RBAC Trigger */}
-          {currentOfficer && (
-            <button
-              onClick={() => onTabChange("rbac")}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-mono transition-all active:scale-95"
-              title="View Authenticated Credentials & Security Scope"
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full animate-pulse"
-                style={{ backgroundColor: currentOfficer.avatarColor || "#f59e0b" }}
-              />
-              <span className="hidden md:inline font-semibold text-slate-200">{currentOfficer.name.split(" ")[0]}</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-slate-950 text-amber-400 border border-slate-800 font-bold">
-                {currentOfficer.role === "ADMIN"
-                  ? "ADMIN"
-                  : currentOfficer.role === "LEAD_INVESTIGATOR"
-                  ? "LEAD IO"
-                  : "FORENSIC"}
-              </span>
-            </button>
-          )}
-
-          {/* Sign Out Button */}
-          {onLogout && (
-            <button
-              onClick={onLogout}
-              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-300 text-xs font-mono transition-all flex items-center gap-1.5 active:scale-95"
-              title="Sign Out of Session"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">Sign Out</span>
-            </button>
-          )}
-
-          {/* AI Copilot Trigger */}
-          <button
-            onClick={onOpenCopilot}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all shadow-sm active:scale-95"
-            title="Ask AI Copilot"
-          >
-            <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400 animate-pulse" />
-            <span className="hidden lg:inline">AI Copilot</span>
-          </button>
-
-          {/* Dossier Trigger */}
-          <button
-            onClick={onOpenDossier}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-850 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition-all shadow-sm active:scale-95"
-            title="Generate Court-Ready Case Dossier"
-          >
-            <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
-            <span className="hidden lg:inline">Dossier</span>
-          </button>
         </div>
       </header>
 

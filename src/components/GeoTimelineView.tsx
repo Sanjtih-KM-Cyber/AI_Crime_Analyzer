@@ -24,16 +24,8 @@ import {
   RotateCcw,
   Navigation,
   Shield,
-  Layers,
   Radio,
-  AlertTriangle,
-  Flame,
-  Crosshair,
   Compass,
-  Zap,
-  Activity,
-  Users,
-  Eye,
 } from "lucide-react";
 
 interface GeoTimelineViewProps {
@@ -66,7 +58,6 @@ function calculateSectorPoints(
 
   for (let i = 0; i <= numPoints; i++) {
     const angle = startAngle + i * step;
-    // Azimuth: 0 = North, 90 = East, 180 = South, 270 = West
     const pLat = lat + latDeltaDeg * Math.cos(angle);
     const pLng = lng + lngDeltaDeg * Math.sin(angle);
     points.push([pLat, pLng]);
@@ -78,7 +69,6 @@ function calculateSectorPoints(
 
 export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
   nodes,
-  links,
   firs,
   cdrs,
   financials,
@@ -89,33 +79,37 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const baseTileLayerRef = useRef<L.TileLayer | null>(null);
 
-  // Layer groups for granular toggle control
+  // Layer groups
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const towersLayerRef = useRef<L.LayerGroup | null>(null);
   const geofencesLayerRef = useRef<L.LayerGroup | null>(null);
   const trajectoryLayerRef = useRef<L.LayerGroup | null>(null);
+  const activeHighlightLayerRef = useRef<L.LayerGroup | null>(null);
 
   // Layer Visibility Filters
   const [showTowers, setShowTowers] = useState(true);
   const [showGeofences, setShowGeofences] = useState(true);
   const [showTrajectories, setShowTrajectories] = useState(true);
-  const [showSafehouses, setShowSafehouses] = useState(true);
   const [mapStyle, setMapStyle] = useState<"dark" | "satellite" | "streets">("dark");
 
-  // Timeline events unified
+  // Timeline events unified with accurate area coordinates
   const allEvents = useMemo(() => {
     return [
-      ...firs.map((f) => ({
-        id: f.id,
-        type: "FIR",
-        title: `${f.firNumber} Registered`,
-        timestamp: f.date,
-        description: f.briefNarrative,
-        badge: "POLICE FIR",
-        color: "#ef4444",
-        lat: 18.9614,
-        lng: 72.8373,
-      })),
+      ...firs.map((f) => {
+        const isVashi = f.briefNarrative?.toLowerCase().includes("vashi") || f.policeStation?.toLowerCase().includes("vashi");
+        return {
+          id: f.id,
+          type: "FIR",
+          title: `${f.firNumber} Registered`,
+          timestamp: f.date,
+          description: f.briefNarrative,
+          badge: "POLICE FIR",
+          color: "#ef4444",
+          lat: isVashi ? 19.0688 : 18.9614,
+          lng: isVashi ? 72.9984 : 72.8373,
+          areaName: isVashi ? "Vashi Sector 17, Navi Mumbai" : "Dongri Crime Branch, South Mumbai",
+        };
+      }),
       ...cdrs.map((c) => ({
         id: c.id,
         type: "CDR",
@@ -126,18 +120,23 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
         color: "#38bdf8",
         lat: c.lat,
         lng: c.lng,
+        areaName: c.towerLocation || "Cell Tower Sector",
       })),
-      ...financials.map((fn) => ({
-        id: fn.id,
-        type: "FINANCIAL",
-        title: `₹${(fn.amount / 100000).toFixed(1)}L Transfer: ${fn.senderName} → ${fn.receiverName}`,
-        timestamp: fn.timestamp,
-        description: `Mode: ${fn.mode} [UTR: ${fn.utrNumber}]`,
-        badge: "HAWALA / BANK",
-        color: "#10b981",
-        lat: 18.9507,
-        lng: 72.8315,
-      })),
+      ...financials.map((fn) => {
+        const isSurat = fn.receiverName?.toLowerCase().includes("surat") || fn.senderName?.toLowerCase().includes("angadia");
+        return {
+          id: fn.id,
+          type: "FINANCIAL",
+          title: `₹${(fn.amount / 100000).toFixed(1)}L Transfer: ${fn.senderName} → ${fn.receiverName}`,
+          timestamp: fn.timestamp,
+          description: `Mode: ${fn.mode} [UTR: ${fn.utrNumber}]`,
+          badge: "HAWALA / BANK",
+          color: "#10b981",
+          lat: isSurat ? 21.1702 : 18.9507,
+          lng: isSurat ? 72.8311 : 72.8315,
+          areaName: isSurat ? "Surat Angadia Diamond Hub" : "Zaveri Bazaar Hawala Hub, Mumbai",
+        };
+      }),
       ...intels.map((it) => ({
         id: it.id,
         type: "INTEL",
@@ -148,6 +147,7 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
         color: "#f59e0b",
         lat: it.lat,
         lng: it.lng,
+        areaName: it.location || "Surveillance Location",
       })),
     ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [firs, cdrs, financials, intels]);
@@ -155,19 +155,20 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(allEvents.length - 1);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
-  // Initialize Map
+  // Initialize Map with 100% Free, Public, Reliable Tile Layers (No API Key Required)
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
-      center: [18.98, 72.9],
-      zoom: 10,
+      center: [18.98, 72.93],
+      zoom: 11,
       attributionControl: false,
     });
 
+    // Zero API key, highly reliable public tile providers
     const tileUrls = {
-      dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      dark: "https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
       satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     };
@@ -178,11 +179,12 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
     }).addTo(map);
     baseTileLayerRef.current = baseLayer;
 
-    // Create sublayer groups
+    // Sublayers
     towersLayerRef.current = L.layerGroup().addTo(map);
     geofencesLayerRef.current = L.layerGroup().addTo(map);
     trajectoryLayerRef.current = L.layerGroup().addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
+    activeHighlightLayerRef.current = L.layerGroup().addTo(map);
 
     mapInstanceRef.current = map;
 
@@ -196,7 +198,7 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
   useEffect(() => {
     if (!mapInstanceRef.current || !baseTileLayerRef.current) return;
     const tileUrls = {
-      dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      dark: "https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png",
       satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     };
@@ -215,7 +217,6 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
     if (!showTowers) return;
 
     CELL_TOWER_SECTORS.forEach((twr) => {
-      // 1. Azimuth Wedge Polygon
       const sectorPolygon = calculateSectorPoints(
         twr.lat,
         twr.lng,
@@ -228,28 +229,27 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
         color: "#38bdf8",
         weight: 1.5,
         fillColor: "#0284c7",
-        fillOpacity: 0.18,
+        fillOpacity: 0.16,
         dashArray: "3,3",
       }).addTo(layer);
 
       sector.bindPopup(`
-        <div class="p-2 font-mono text-xs">
-          <strong class="text-sky-600 block text-sm">${twr.towerName}</strong>
+        <div class="p-2.5 font-mono text-xs text-slate-900">
+          <strong class="text-sky-700 block text-sm font-bold">${twr.towerName}</strong>
           <span class="text-slate-600 block">BTS ID: ${twr.towerId}</span>
-          <div class="mt-2 border-t pt-1 space-y-0.5">
-            <div>Azimuth: <strong>${twr.azimuthDeg}° (Beam: ${twr.beamWidthDeg}°)</strong></div>
-            <div>Radius: <strong>${(twr.radiusMeters / 1000).toFixed(1)} km</strong></div>
+          <div class="mt-2 border-t pt-1.5 space-y-0.5">
+            <div>Azimuth Angle: <strong>${twr.azimuthDeg}° (Beam: ${twr.beamWidthDeg}°)</strong></div>
+            <div>Coverage Radius: <strong>${(twr.radiusMeters / 1000).toFixed(1)} km</strong></div>
             <div>Operator: <strong>${twr.operator}</strong></div>
-            <div>Active Calls Logged: <strong>${twr.activeCallsCount} calls</strong></div>
+            <div>Logged Calls: <strong>${twr.activeCallsCount} intercepts</strong></div>
           </div>
         </div>
       `);
 
-      // 2. Tower Center Pin
       const towerIcon = L.divIcon({
         className: "custom-tower-marker",
         html: `
-          <div style="background-color: #0284c7; width: 22px; height: 22px; border-radius: 4px; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold; box-shadow: 0 0 8px rgba(0,0,0,0.6);">
+          <div style="background-color: #0284c7; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold; box-shadow: 0 0 8px rgba(0,0,0,0.6);">
             📡
           </div>
         `,
@@ -258,12 +258,12 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
       });
 
       L.marker([twr.lat, twr.lng], { icon: towerIcon })
-        .bindTooltip(`BTS: ${twr.towerName} (${twr.azimuthDeg}°)`, { sticky: true })
+        .bindTooltip(`${twr.towerName} (${twr.azimuthDeg}°)`, { sticky: true })
         .addTo(layer);
     });
   }, [showTowers]);
 
-  // Render Geofences
+  // Render Geofences with Blinking Caution Pins for Alert Zones
   useEffect(() => {
     if (!geofencesLayerRef.current || !mapInstanceRef.current) return;
     const layer = geofencesLayerRef.current;
@@ -272,30 +272,49 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
     if (!showGeofences) return;
 
     GEOFENCE_ZONES.forEach((zone) => {
-      const circle = L.circle([zone.center.lat, zone.center.lng], {
+      L.circle([zone.center.lat, zone.center.lng], {
         radius: zone.radiusMeters,
         color: zone.alertTriggered ? "#ef4444" : "#f59e0b",
         weight: 2,
         fillColor: zone.alertTriggered ? "#ef4444" : "#f59e0b",
-        fillOpacity: 0.15,
+        fillOpacity: 0.16,
         dashArray: "5,5",
       }).addTo(layer);
 
-      circle.bindPopup(`
-        <div class="p-2 font-mono text-xs">
-          <strong class="text-rose-600 block text-sm font-bold">${zone.name}</strong>
-          <span class="text-slate-600 block">Surveillance Category: ${zone.category}</span>
-          <div class="mt-2 border-t pt-1">
-            <div>Perimeter Radius: <strong>${zone.radiusMeters}m</strong></div>
-            <div>Suspects Tracked Inside: <strong class="text-rose-700">${zone.activeSuspectsInside.join(", ")}</strong></div>
-            <div class="mt-1 text-red-600 font-bold">${zone.alertTriggered ? "⚠️ ACTIVE GEOFENCE BREACH DETECTED" : "✓ Perimeter Secure"}</div>
+      // Blinking caution pin on the alert zone center
+      if (zone.alertTriggered) {
+        const cautionIcon = L.divIcon({
+          className: "geofence-alert-marker",
+          html: `
+            <div style="position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+              <div class="map-radar-pulse" style="position: absolute; width: 32px; height: 32px; border-radius: 50%; background: rgba(239, 68, 68, 0.6);"></div>
+              <div class="caution-blinking-pin" style="width: 26px; height: 26px; border-radius: 50%; background: #dc2626; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 0 14px rgba(239, 68, 68, 0.9); cursor: pointer; z-index: 10;">
+                ⚠️
+              </div>
+            </div>
+          `,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        });
+
+        const alertMarker = L.marker([zone.center.lat, zone.center.lng], { icon: cautionIcon });
+        alertMarker.bindPopup(`
+          <div class="p-2.5 font-mono text-xs text-slate-900">
+            <strong class="text-rose-700 block text-sm font-bold">⚠️ ${zone.name}</strong>
+            <span class="text-slate-600 block">Surveillance Zone: ${zone.category}</span>
+            <div class="mt-2 border-t pt-1.5 space-y-1">
+              <div>Perimeter: <strong>${zone.radiusMeters}m radius</strong></div>
+              <div>Suspects Tracked: <strong class="text-rose-800">${zone.activeSuspectsInside.join(", ")}</strong></div>
+              <div class="text-rose-600 font-bold">Active Geofence Breach</div>
+            </div>
           </div>
-        </div>
-      `);
+        `);
+        alertMarker.addTo(layer);
+      }
     });
   }, [showGeofences]);
 
-  // Render Suspect Trajectories & Co-Location Hotspots
+  // Render Suspect Trajectories & Pins with Blinking Caution on Co-Location / Dead-Drop
   useEffect(() => {
     if (!trajectoryLayerRef.current || !mapInstanceRef.current) return;
     const layer = trajectoryLayerRef.current;
@@ -303,11 +322,19 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
 
     if (!showTrajectories) return;
 
+    // Filter points up to the current event timestamp if scrubbing or playing
+    const activeEvent = allEvents[currentStepIndex];
+    const maxTimestamp = activeEvent ? new Date(activeEvent.timestamp).getTime() : Infinity;
+
     // Group trajectory points by suspect
     const suspectTrajectories: { [suspectId: string]: SuspectTrajectoryPoint[] } = {};
     SUSPECT_TRAJECTORIES.forEach((pt) => {
-      if (!suspectTrajectories[pt.suspectId]) suspectTrajectories[pt.suspectId] = [];
-      suspectTrajectories[pt.suspectId].push(pt);
+      const ptTime = new Date(pt.timestamp).getTime();
+      // Show points that occurred up to the active event timestamp + small window
+      if (ptTime <= maxTimestamp || currentStepIndex === allEvents.length - 1) {
+        if (!suspectTrajectories[pt.suspectId]) suspectTrajectories[pt.suspectId] = [];
+        suspectTrajectories[pt.suspectId].push(pt);
+      }
     });
 
     const suspectColors: { [id: string]: string } = {
@@ -316,61 +343,81 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
     };
 
     Object.entries(suspectTrajectories).forEach(([suspectId, points]) => {
+      if (points.length === 0) return;
       const color = suspectColors[suspectId] || "#a855f7";
       const coords: [number, number][] = points.map((p) => [p.lat, p.lng]);
 
-      // Connect trajectory with animated dashline
-      L.polyline(coords, {
-        color: color,
-        weight: 3.5,
-        opacity: 0.85,
-        dashArray: "8,6",
-      })
-        .bindTooltip(`Suspect Trajectory: ${points[0].suspectName}`, { sticky: true })
-        .addTo(layer);
-
-      // Plot Breadcrumb Points
-      points.forEach((pt, idx) => {
-        const isDeadDrop = pt.locationLabel.includes("Dead-Drop") || pt.locationLabel.includes("Co-Location");
-
-        const breadcrumbHtml = `
-          <div style="background-color: ${isDeadDrop ? "#ef4444" : color}; width: ${isDeadDrop ? "22px" : "16px"}; height: ${isDeadDrop ? "22px" : "16px"}; border-radius: 50%; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; color: #0f172a; font-weight: bold; font-size: 9px; box-shadow: 0 0 8px ${color};">
-            ${isDeadDrop ? "⚠️" : idx + 1}
-          </div>
-        `;
-
-        const icon = L.divIcon({
-          className: "traj-breadcrumb",
-          html: breadcrumbHtml,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
-        });
-
-        L.marker([pt.lat, pt.lng], { icon })
-          .bindPopup(`
-            <div class="p-2 font-mono text-xs">
-              <strong class="block text-sm" style="color: ${color}">${pt.suspectName}</strong>
-              <div class="text-slate-600">${pt.locationLabel}</div>
-              <div class="mt-2 border-t pt-1 space-y-0.5">
-                <div>Timestamp: <strong>${pt.timestamp}</strong></div>
-                <div>Recorded Speed: <strong>${pt.speedKmh} km/h</strong></div>
-                <div>Signal Type: <strong>${pt.activityType}</strong></div>
-                ${pt.towerAzimuth ? `<div>Azimuth Alignment: <strong>${pt.towerAzimuth}°</strong></div>` : ""}
-              </div>
-            </div>
-          `)
+      if (coords.length > 1) {
+        L.polyline(coords, {
+          color: color,
+          weight: 3.5,
+          opacity: 0.85,
+          dashArray: "8,6",
+        })
+          .bindTooltip(`Trajectory: ${points[0].suspectName}`, { sticky: true })
           .addTo(layer);
+      }
+
+      points.forEach((pt, idx) => {
+        const isHazardOrCoLocation =
+          pt.locationLabel.includes("Dead-Drop") ||
+          pt.locationLabel.includes("Co-Location") ||
+          pt.locationLabel.includes("Nhava Sheva");
+
+        let icon: L.DivIcon;
+
+        if (isHazardOrCoLocation) {
+          // Blinking caution pin without clunky text overlay
+          icon = L.divIcon({
+            className: "hazard-co-location-pin",
+            html: `
+              <div style="position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
+                <div class="map-radar-pulse" style="position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgba(239, 68, 68, 0.6);"></div>
+                <div class="caution-blinking-pin" style="width: 28px; height: 28px; border-radius: 50%; background: #dc2626; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 0 16px rgba(239, 68, 68, 1); cursor: pointer; z-index: 10;">
+                  ⚠️
+                </div>
+              </div>
+            `,
+            iconSize: [34, 34],
+            iconAnchor: [17, 17],
+          });
+        } else {
+          // Clean circular waypoint number
+          icon = L.divIcon({
+            className: "traj-breadcrumb",
+            html: `
+              <div style="background-color: ${color}; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; color: #0f172a; font-weight: bold; font-size: 9px; box-shadow: 0 0 8px ${color};">
+                ${idx + 1}
+              </div>
+            `,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          });
+        }
+
+        const marker = L.marker([pt.lat, pt.lng], { icon });
+        marker.bindPopup(`
+          <div class="p-2.5 font-mono text-xs text-slate-900">
+            <strong class="block text-sm font-bold" style="color: ${isHazardOrCoLocation ? "#dc2626" : color}">${pt.suspectName}</strong>
+            <div class="text-slate-700 font-semibold mt-0.5">${pt.locationLabel}</div>
+            <div class="mt-2 border-t pt-1.5 space-y-0.5">
+              <div>Time: <strong>${pt.timestamp}</strong></div>
+              <div>Movement Speed: <strong>${pt.speedKmh} km/h</strong></div>
+              <div>Activity: <strong>${pt.activityType}</strong></div>
+              ${pt.towerAzimuth ? `<div>Azimuth Alignment: <strong>${pt.towerAzimuth}°</strong></div>` : ""}
+            </div>
+          </div>
+        `);
+        marker.addTo(layer);
       });
     });
-  }, [showTrajectories]);
+  }, [showTrajectories, currentStepIndex, allEvents]);
 
-  // Render Safehouse Nodes & Evidence Markers
+  // Render Network Entity Safehouses & Key Nodes
   useEffect(() => {
     if (!markersLayerRef.current || !mapInstanceRef.current) return;
     const layer = markersLayerRef.current;
     layer.clearLayers();
-
-    if (!showSafehouses) return;
 
     const geoNodes = nodes.filter((n) => n.details?.geo?.lat && n.details?.geo?.lng);
     geoNodes.forEach((node) => {
@@ -379,18 +426,19 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
 
       const markerHtml = `
         <div style="
-          background-color: ${isKingpin ? "#f59e0b" : "#ef4444"};
-          width: 26px;
-          height: 26px;
+          background-color: ${isKingpin ? "#f59e0b" : "#3b82f6"};
+          width: 24px;
+          height: 24px;
           border-radius: 50%;
           border: 2px solid #ffffff;
-          box-shadow: 0 0 12px rgba(0,0,0,0.85);
+          box-shadow: 0 0 10px rgba(0,0,0,0.8);
           display: flex;
           align-items: center;
           justify-content: center;
           color: #0f172a;
           font-weight: bold;
           font-size: 12px;
+          cursor: pointer;
         ">
           ${isKingpin ? "★" : "⚲"}
         </div>
@@ -399,21 +447,61 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
       const customIcon = L.divIcon({
         className: "custom-geo-marker",
         html: markerHtml,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13],
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
       });
 
       const marker = L.marker([geo.lat, geo.lng], { icon: customIcon });
       marker.bindPopup(`
-        <div class="p-2 font-mono text-xs">
-          <strong class="text-sm font-bold text-slate-900 block">${node.label}</strong>
+        <div class="p-2.5 font-mono text-xs text-slate-900">
+          <strong class="text-sm font-bold block">${node.label}</strong>
           <span class="text-slate-600 block">${node.role || node.type}</span>
-          <p class="mt-1 text-slate-700">${geo.name || "Geo Coordinates"}</p>
+          <p class="mt-1 text-slate-700 font-semibold">${geo.name || "Identified Location"}</p>
         </div>
       `);
+      marker.on("click", () => onSelectNode(node));
       marker.addTo(layer);
     });
-  }, [nodes, showSafehouses]);
+  }, [nodes, onSelectNode]);
+
+  // Synchronized Event Highlight & Map Panning during Timeline Playback
+  useEffect(() => {
+    if (!activeHighlightLayerRef.current || !mapInstanceRef.current) return;
+    const layer = activeHighlightLayerRef.current;
+    layer.clearLayers();
+
+    const activeEvent = allEvents[currentStepIndex];
+    if (!activeEvent || !activeEvent.lat || !activeEvent.lng) return;
+
+    // Smoothly pan map to the active event's location
+    mapInstanceRef.current.panTo([activeEvent.lat, activeEvent.lng], {
+      animate: true,
+      duration: 0.6,
+    });
+
+    // Create expanding radar pulse highlight on the active location
+    const pulseIcon = L.divIcon({
+      className: "active-event-pulse-marker",
+      html: `
+        <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
+          <div class="map-radar-pulse" style="position: absolute; width: 44px; height: 44px; border-radius: 50%; background: ${activeEvent.color}; opacity: 0.8;"></div>
+          <div style="width: 28px; height: 28px; border-radius: 50%; background: ${activeEvent.color}; border: 3px solid #ffffff; box-shadow: 0 0 16px ${activeEvent.color}; display: flex; align-items: center; justify-content: center; color: #0f172a; font-weight: bold; font-size: 13px; z-index: 10;">
+            📍
+          </div>
+        </div>
+      `,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+    });
+
+    const highlightMarker = L.marker([activeEvent.lat, activeEvent.lng], { icon: pulseIcon });
+    highlightMarker
+      .bindTooltip(
+        `<div class="font-mono text-xs"><strong>${activeEvent.title}</strong><div class="text-[10px] text-slate-300">${activeEvent.areaName}</div></div>`,
+        { permanent: true, direction: "top", offset: [0, -18], className: "custom-map-tooltip" }
+      )
+      .addTo(layer);
+  }, [currentStepIndex, allEvents]);
 
   // Playback Auto-Stepper
   useEffect(() => {
@@ -434,30 +522,24 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Header Bar */}
+      {/* Clean Header Bar without Clutter */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-cyan-500/10 rounded-xl text-cyan-400 border border-cyan-500/20">
-            <Radio className="w-6 h-6 animate-pulse" />
+          <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+            <Compass className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                GIS FORENSIC SUITE
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                CELL AZIMUTHS & CO-LOCATION INTERCEPT
-              </span>
-            </div>
-            <h2 className="text-base font-bold text-slate-100 mt-0.5">
+            <h2 className="text-base font-bold text-slate-100">
               Geospatial & Spatio-Temporal Intelligence Map
             </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Accurate incident locations, suspect trajectories, and synchronized chronological playback.
+            </p>
           </div>
         </div>
 
-        {/* Tactical Layer Filters & Tile Switcher */}
+        {/* Clean Layer Toggles & Free Map Theme Switcher */}
         <div className="flex flex-wrap items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
-          {/* Layer Toggles */}
           <button
             onClick={() => setShowTowers(!showTowers)}
             className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold flex items-center gap-1.5 transition-colors ${
@@ -491,23 +573,29 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
             <span>Trajectories</span>
           </button>
 
-          {/* Map Tile Theme Switcher */}
+          {/* Map Theme Switcher (100% Free Open Layers) */}
           <div className="flex items-center gap-1 pl-2 border-l border-slate-800">
             <button
               onClick={() => setMapStyle("dark")}
-              className={`px-2 py-1 rounded text-[10px] font-mono ${mapStyle === "dark" ? "bg-slate-800 text-slate-100 font-bold" : "text-slate-400"}`}
+              className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${
+                mapStyle === "dark" ? "bg-slate-800 text-amber-400 font-bold border border-slate-700" : "text-slate-400 hover:text-slate-200"
+              }`}
             >
-              Dark Ops
+              Dark
             </button>
             <button
               onClick={() => setMapStyle("satellite")}
-              className={`px-2 py-1 rounded text-[10px] font-mono ${mapStyle === "satellite" ? "bg-slate-800 text-slate-100 font-bold" : "text-slate-400"}`}
+              className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${
+                mapStyle === "satellite" ? "bg-slate-800 text-amber-400 font-bold border border-slate-700" : "text-slate-400 hover:text-slate-200"
+              }`}
             >
               Satellite
             </button>
             <button
               onClick={() => setMapStyle("streets")}
-              className={`px-2 py-1 rounded text-[10px] font-mono ${mapStyle === "streets" ? "bg-slate-800 text-slate-100 font-bold" : "text-slate-400"}`}
+              className={`px-2.5 py-1 rounded text-xs font-mono transition-colors ${
+                mapStyle === "streets" ? "bg-slate-800 text-amber-400 font-bold border border-slate-700" : "text-slate-400 hover:text-slate-200"
+              }`}
             >
               Streets
             </button>
@@ -519,32 +607,6 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl h-[560px] relative">
           <div ref={mapContainerRef} className="w-full h-full z-10" />
-
-          {/* Floating Map Legend & Co-Location Alert */}
-          <div className="absolute top-3 left-3 z-20 bg-slate-900/95 backdrop-blur-md p-3 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex flex-col gap-2 shadow-2xl">
-            <div className="flex items-center gap-3 font-mono">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
-                <span className="font-bold text-amber-300">Feroz Trajectory</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="font-bold text-cyan-300">Tariq Trajectory</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-sky-500"></span>
-                <span className="text-sky-300">120° BTS Sector</span>
-              </span>
-            </div>
-
-            {/* Co-Location Alert Callout */}
-            <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span className="text-[10px] text-rose-300 leading-tight">
-                <strong>Co-Location Detected:</strong> Feroz & Tariq met at Nhava Sheva (23:05 - 23:15) within 45m radius.
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* Chronological Incident Trail & Event Scrubber */}
@@ -586,7 +648,7 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
               className="w-full accent-amber-500 mb-3 cursor-pointer"
             />
 
-            {/* Event List */}
+            {/* Event List with Click-to-Focus */}
             <div className="space-y-2.5 overflow-y-auto max-h-[410px] pr-1">
               {allEvents.map((ev, idx) => {
                 const isActive = idx <= currentStepIndex;
@@ -594,11 +656,12 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
                 return (
                   <div
                     key={ev.id}
-                    className={`p-3 rounded-xl border text-xs transition-all ${
+                    onClick={() => setCurrentStepIndex(idx)}
+                    className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
                       isCurrent
                         ? "bg-slate-800 border-amber-500 shadow-lg scale-[1.01]"
                         : isActive
-                        ? "bg-slate-950/80 border-slate-800 text-slate-300"
+                        ? "bg-slate-950/80 border-slate-800 text-slate-300 hover:border-slate-700"
                         : "bg-slate-950/30 border-slate-900 opacity-40 text-slate-600"
                     }`}
                   >
@@ -618,6 +681,10 @@ export const GeoTimelineView: React.FC<GeoTimelineViewProps> = ({
                       </span>
                     </div>
                     <strong className="block text-slate-100 font-semibold mb-0.5">{ev.title}</strong>
+                    <div className="text-[10px] font-mono text-amber-400/90 mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      <span>{ev.areaName}</span>
+                    </div>
                     <p className="text-[11px] text-slate-400 leading-normal">{ev.description}</p>
                   </div>
                 );

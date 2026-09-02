@@ -58,7 +58,7 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({
     {
       id: "welcome",
       sender: "copilot",
-      text: `Tactical AI Criminal Graph Copilot initialized.\nIngested ${nodes.length} network entities, ${links.length} relational links, and ${patterns.length} algorithmic alerts.\n\nAuthoritative access granted for Lead Investigating Officer. Ask tactical queries regarding syndicate command hierarchy, Hawala routing, cell tower overlap, or Section 91 CrPC notice targets.`,
+      text: `Criminal Intelligence Graph Copilot online.\nIndexed ${nodes.length} network entities, ${links.length} relational connections, and ${patterns.length} forensic alerts.\n\nYou can ask any question regarding syndicate command hierarchy, money laundering trails, phone call triangulation, or interrogation strategies.`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
@@ -107,10 +107,7 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({
       setMessages((prev) => [...prev, copilotMsg]);
     } catch (e: any) {
       console.error(e);
-      let errorText = "Error querying intelligence graph. Please verify case connectivity.";
-      if (e.status === 403) {
-        errorText = "RESTRICTED CLEARANCE: AI Graph Copilot is strictly reserved for authenticated LEAD_INVESTIGATOR officers.";
-      }
+      let errorText = "Unable to complete query. Please verify connectivity.";
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         sender: "copilot",
@@ -124,11 +121,23 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({
     }
   };
 
+  const handleClearChat = () => {
+    setMessages([
+      {
+        id: "welcome-new",
+        sender: "copilot",
+        text: `Chat cleared. Ready for your investigative queries across ${nodes.length} entities and ${links.length} relational trails.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+  };
+
   const samplePrompts = [
     "Who is the kingpin and how are they shielded from ground operations?",
     "Which suspect's arrest would disrupt the largest communication channels?",
     "Explain the burner phone swapping pattern detected on IMEI 864219038472911.",
     "Trace the Hawala money trail from remitter to receiver.",
+    "Draft Section 91 CrPC requisition questions for the bank manager.",
   ];
 
   return (
@@ -139,30 +148,34 @@ export const AiCopilotDrawer: React.FC<AiCopilotDrawerProps> = ({
       />
       <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[540px] bg-slate-900/98 backdrop-blur-xl border-l border-slate-800 shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-300">
         {/* Top Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 border border-indigo-500/20">
+            <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 border border-amber-500/20">
               <Bot className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-100">Criminal Intelligence Copilot</h2>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  LEAD IO ONLY
-                </span>
-              </div>
+              <h2 className="text-sm font-bold text-slate-100">Criminal Intelligence Copilot</h2>
               <p className="text-[11px] text-slate-400">
-                Grounded strictly on MongoDB Case Truth & CDR Extractions
+                AI Forensic Assistant &bull; Grounded on Case Evidence
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleClearChat}
+              className="text-[11px] text-slate-400 hover:text-slate-200 px-2 py-1 rounded border border-slate-800 hover:border-slate-700"
+              title="Reset conversation"
+            >
+              Clear
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Messages Area */}

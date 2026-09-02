@@ -376,80 +376,178 @@ export function findShortestPath(
   sourceId: string,
   targetId: string,
   nodes: CrimeNetworkNode[],
-  links: CrimeNetworkLink[]
+  links: CrimeNetworkLink[],
+  trailPreference: "ALL" | "HAWALA_FINANCIAL" | "TELECOM_CDR" = "ALL"
 ): ShortestPathResult | null {
+  if (!sourceId || !targetId) return null;
+
   if (sourceId === targetId) {
     return {
       path: [sourceId],
+      hops: [sourceId],
       links: [],
       totalHops: 0,
-      summary: "Source and Target are the same entity.",
+      summary: "Origin and Destination are the same entity.",
+      steps: [],
+      trailType: trailPreference === "HAWALA_FINANCIAL" ? "HAWALA_FINANCIAL" : trailPreference === "TELECOM_CDR" ? "TELECOM_CDR" : "GENERAL",
     };
   }
 
-  const adj = new Map<string, Array<{ neighbor: string; linkId: string }>>();
+  // Ensure nodeMap contains all nodes
+  const nodeMap = new Map<string, CrimeNetworkNode>();
+  nodes.forEach((n) => nodeMap.set(n.id, n));
+
+  const adj = new Map<string, Array<{ neighbor: string; link: CrimeNetworkLink; weight: number }>>();
+
+  // Initialize adjacency for all known nodes
   nodes.forEach((n) => adj.set(n.id, []));
 
   links.forEach((l) => {
     const s = typeof l.source === "object" ? l.source.id : l.source;
     const t = typeof l.target === "object" ? l.target.id : l.target;
-    if (adj.has(s) && adj.has(t)) {
-      adj.get(s)!.push({ neighbor: t, linkId: l.id });
-      adj.get(t)!.push({ neighbor: s, linkId: l.id });
+
+    if (!adj.has(s)) adj.set(s, []);
+    if (!adj.has(t)) adj.set(t, []);
+
+    // Calculate edge weight penalty based on trail preference
+    let edgeCost = 1.0;
+    const isFinancial = l.relationType === "FUNDS_TRANSFER" || (l as any).amount || (l as any).type === "FINANCIAL";
+    const isTelecom = l.relationType === "CALLS" || (l as any).frequency || (l as any).callCount;
+
+    if (trailPreference === "HAWALA_FINANCIAL") {
+      edgeCost = isFinancial ? 0.5 : 2.5;
+    } else if (trailPreference === "TELECOM_CDR") {
+      edgeCost = isTelecom ? 0.5 : 2.5;
     }
+
+    adj.get(s)!.push({ neighbor: t, link: l, weight: edgeCost });
+    adj.get(t)!.push({ neighbor: s, link: l, weight: edgeCost });
   });
 
-  const parent = new Map<string, { node: string; linkId: string } | null>();
+  // Dijkstra / Priority BFS
+  const distances = new Map<string, number>();
+  const parent = new Map<string, { node: string; link: CrimeNetworkLink } | null>();
   const visited = new Set<string>();
-  const queue = [sourceId];
-  visited.add(sourceId);
+
+  distances.set(sourceId, 0);
   parent.set(sourceId, null);
 
-  let found = false;
-  while (queue.length > 0) {
-    const curr = queue.shift()!;
-    if (curr === targetId) {
-      found = true;
+  // Simple min-distance extraction
+  const unvisited = new Set<string>(adj.keys());
+
+  while (unvisited.size > 0) {
+    let u: string | null = null;
+    let minD = Infinity;
+
+    for (const node of unvisited) {
+      const d = distances.get(node) ?? Infinity;
+      if (d < minD) {
+        minD = d;
+        u = node;
+      }
+    }
+
+    if (!u || minD === Infinity || u === targetId) {
       break;
     }
 
-    for (const { neighbor, linkId } of adj.get(curr) || []) {
+    unvisited.delete(u);
+    visited.add(u);
+
+    const currentDist = distances.get(u)!;
+    for (const { neighbor, link, weight } of adj.get(u) || []) {
       if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        parent.set(neighbor, { node: curr, linkId });
-        queue.push(neighbor);
+        const newDist = currentDist + weight;
+        if (newDist < (distances.get(neighbor) ?? Infinity)) {
+          distances.set(neighbor, newDist);
+          parent.set(neighbor, { node: u, link });
+        }
       }
     }
   }
 
-  if (!found) return null;
+  if (!parent.has(targetId)) {
+    // If no path under specific trail preference, retry with fallback ALL
+    if (trailPreference !== "ALL") {
+      return findShortestPath(sourceId, targetId, nodes, links, "ALL");
+    }
+    return null;
+  }
 
   // Reconstruct path
   const path: string[] = [];
   const pathLinks: string[] = [];
+  const linkObjects: CrimeNetworkLink[] = [];
   let curr: string | null = targetId;
 
   while (curr !== null) {
     path.unshift(curr);
     const p = parent.get(curr);
     if (p) {
-      pathLinks.unshift(p.linkId);
+      pathLinks.unshift(p.link.id);
+      linkObjects.unshift(p.link);
       curr = p.node;
     } else {
       curr = null;
     }
   }
 
-  const sourceNode = nodes.find((n) => n.id === sourceId);
-  const targetNode = nodes.find((n) => n.id === targetId);
+  const sourceNode = nodeMap.get(sourceId) || nodes.find((n) => n.id === sourceId);
+  const targetNode = nodeMap.get(targetId) || nodes.find((n) => n.id === targetId);
+
+  // Build step-by-step breakdown
+  const steps = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const fromId = path[i];
+    const toId = path[i + 1];
+    const fNode = nodeMap.get(fromId) || { id: fromId, label: fromId, type: "PERSON" as const } as CrimeNetworkNode;
+    const tNode = nodeMap.get(toId) || { id: toId, label: toId, type: "PERSON" as const } as CrimeNetworkNode;
+    const linkObj = linkObjects[i];
+
+    const relName = linkObj?.relationType?.replace(/_/g, " ") || "CONNECTED_TO";
+    const amountStr = (linkObj as any)?.amount ? ` (₹${Number((linkObj as any).amount).toLocaleString("en-IN")})` : "";
+    const callStr = (linkObj as any)?.callCount ? ` (${(linkObj as any).callCount} calls)` : "";
+
+    steps.push({
+      fromId,
+      fromLabel: fNode.label,
+      fromType: fNode.type,
+      toId,
+      toLabel: tNode.label,
+      toType: tNode.type,
+      linkId: linkObj?.id,
+      relationType: linkObj?.relationType || "CONNECTED_TO",
+      summary: `${fNode.label} ➔ ${relName}${amountStr}${callStr} ➔ ${tNode.label}`,
+      isFinancial: linkObj?.relationType === "FUNDS_TRANSFER" || !!amountStr,
+      isTelecom: linkObj?.relationType === "CALLS" || !!callStr,
+    });
+  }
+
+  const intermediaryCount = path.length - 2;
+  const trailDescription =
+    trailPreference === "HAWALA_FINANCIAL"
+      ? "Hawala Money Trail"
+      : trailPreference === "TELECOM_CDR"
+      ? "Telecom Bridge"
+      : "Relational Pathway";
 
   return {
     path,
+    hops: path, // Crucial compatibility alias
     links: pathLinks,
     totalHops: path.length - 1,
-    summary: `Found ${path.length - 1}-hop intermediary link connecting ${
+    summary: `Found ${path.length - 1}-hop ${trailDescription} connecting ${
       sourceNode?.label || sourceId
-    } to ${targetNode?.label || targetId} via ${path.length - 2} intermediary conduits.`,
+    } to ${targetNode?.label || targetId} via ${intermediaryCount} intermediary node${
+      intermediaryCount === 1 ? "" : "s"
+    }.`,
+    steps,
+    trailType:
+      trailPreference === "HAWALA_FINANCIAL"
+        ? "HAWALA_FINANCIAL"
+        : trailPreference === "TELECOM_CDR"
+        ? "TELECOM_CDR"
+        : "GENERAL",
   };
 }
 

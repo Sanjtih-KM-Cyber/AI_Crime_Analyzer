@@ -104,7 +104,274 @@ export const DossierModal: React.FC<DossierModalProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    try {
+      const printWindow = window.open("", "_blank");
+      const printableContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>COURT DOSSIER - ${displayDossier.caseTitle} (${displayDossier.caseNumber})</title>
+  <style>
+    @page { size: A4; margin: 20mm; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #111827;
+      background: #ffffff;
+      line-height: 1.5;
+      font-size: 13px;
+      margin: 0;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #000;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .classification {
+      display: inline-block;
+      border: 2px solid #dc2626;
+      color: #dc2626;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 3px 10px;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .agency-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: #4b5563;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .case-title {
+      font-size: 20px;
+      font-weight: 900;
+      margin: 6px 0 4px 0;
+      color: #000;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #374151;
+      font-family: monospace;
+      margin-top: 8px;
+    }
+    h2 {
+      font-size: 14px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #d1d5db;
+      padding-bottom: 4px;
+      margin-top: 24px;
+      margin-bottom: 10px;
+      color: #1f2937;
+    }
+    .summary-box {
+      background-color: #f9fafb;
+      border: 1px solid #e5e7eb;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .suspect-card {
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+    }
+    .suspect-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .risk-badge {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-family: monospace;
+    }
+    .pattern-card {
+      border-left: 3px solid #dc2626;
+      background: #fef2f2;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      page-break-inside: avoid;
+    }
+    .pattern-title {
+      font-weight: bold;
+      color: #991b1b;
+      font-size: 12px;
+    }
+    .lead-box {
+      background: #fffbeb;
+      border: 1px solid #fef3c7;
+      padding: 6px 10px;
+      margin-top: 4px;
+      font-size: 11px;
+      color: #92400e;
+    }
+    ol {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    .signatures {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #9ca3af;
+      display: flex;
+      justify-content: space-between;
+      page-break-inside: avoid;
+    }
+    .sig-block {
+      text-align: center;
+      width: 200px;
+    }
+    .sig-line {
+      border-bottom: 1px dashed #4b5563;
+      height: 40px;
+      margin-bottom: 6px;
+    }
+    .footer-note {
+      margin-top: 30px;
+      text-align: center;
+      font-size: 10px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="classification">${displayDossier.classification}</div>
+    <div class="agency-title">CENTRAL INTELLIGENCE & LAW ENFORCEMENT &bull; GRAPH INTELLIGENCE DIVISION</div>
+    <div class="case-title">${displayDossier.caseTitle}</div>
+    <div class="meta-row">
+      <span><strong>CASE ID:</strong> ${displayDossier.caseNumber}</span>
+      <span><strong>GENERATED:</strong> ${new Date(displayDossier.generatedAt).toLocaleString()}</span>
+      <span><strong>STATUTE:</strong> SEC 65B EVIDENCE CERTIFIED</span>
+    </div>
+  </div>
+
+  <h2>1. Executive Case Summary</h2>
+  <div class="summary-box">
+    ${displayDossier.executiveSummary}
+  </div>
+
+  <h2>2. Primary Suspect Profiles & Graph Centrality</h2>
+  ${displayDossier.keySuspects
+    .map(
+      (s) => `
+    <div class="suspect-card">
+      <div class="suspect-header">
+        <span>${s.name} (${s.role})</span>
+        <span class="risk-badge">RISK: ${s.riskScore}/100</span>
+      </div>
+      <div style="font-size: 11px; color: #4b5563; margin-top: 2px;">
+        <strong>Aliases:</strong> ${s.knownAliases.join(", ") || "None recorded"} &bull; <strong>Centrality:</strong> ${s.centralityMetric}
+      </div>
+      <div style="margin-top: 6px; font-size: 12px; color: #1f2937;">
+        ${s.allegedActs}
+      </div>
+    </div>
+  `
+    )
+    .join("")}
+
+  <h2>3. Suspicious Algorithmic Inferences & Money Mule Evidence</h2>
+  ${displayDossier.suspiciousPatternsDetected
+    .map(
+      (p) => `
+    <div class="pattern-card">
+      <div class="pattern-title">[${p.severity}] ${p.patternTitle}</div>
+      <div style="font-size: 11px; color: #374151; margin-top: 2px;">${p.evidenceSummary}</div>
+      <div class="lead-box"><strong>Actionable Lead:</strong> ${p.actionableLead}</div>
+    </div>
+  `
+    )
+    .join("")}
+
+  <h2>4. Actionable Prosecution Directives & Court Requests</h2>
+  <ol>
+    ${displayDossier.actionableNextSteps.map((step) => `<li>${step}</li>`).join("")}
+  </ol>
+
+  <div class="signatures">
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <div style="font-weight: bold; font-size: 11px;">Lead Investigating Officer</div>
+      <div style="font-size: 10px; color: #6b7280;">Special Crime Investigation Branch</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <div style="font-weight: bold; font-size: 11px;">Digital Forensic Examiner</div>
+      <div style="font-size: 10px; color: #6b7280;">Cyber Forensics & Hash Verification</div>
+    </div>
+    <div class="sig-block">
+      <div class="sig-line"></div>
+      <div style="font-weight: bold; font-size: 11px;">Public Prosecutor / Special Court</div>
+      <div style="font-size: 10px; color: #6b7280;">Judicial Presentation & Filing</div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    Document generated electronically by AI Crime Network Analysis Platform. Certified under Section 65B Indian Evidence Act / Section 63 Bharatiya Sakshya Adhiniyam (BSA).
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 300);
+    };
+  </script>
+</body>
+</html>
+      `;
+
+      if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(printableContent);
+        printWindow.document.close();
+      } else {
+        // Fallback for popup-blocked environments: inject iframe
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "fixed";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "0";
+        iframe.style.height = "0";
+        iframe.style.border = "0";
+        document.body.appendChild(iframe);
+        const doc = iframe.contentWindow?.document || iframe.contentDocument;
+        if (doc) {
+          doc.open();
+          doc.write(printableContent);
+          doc.close();
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              document.body.removeChild(iframe);
+            }, 2000);
+          }, 400);
+        } else {
+          window.print();
+        }
+      }
+    } catch (e) {
+      console.warn("Popup print failed, falling back to window.print()", e);
+      window.print();
+    }
   };
 
   const handleCopyMarkdown = () => {

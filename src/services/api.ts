@@ -69,7 +69,7 @@ export const authApi = {
     agency: string;
     designation?: string;
     department: string;
-    requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+    requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR";
     reason_for_access: string;
     password?: string;
   }) => {
@@ -130,7 +130,7 @@ export const adminApi = {
     });
   },
 
-  approveRequest: async (id: string, notes?: string, defaultCaseId?: string, assignedRole?: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR") => {
+  approveRequest: async (id: string, notes?: string, defaultCaseId?: string, assignedRole?: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR") => {
     return request<{ success: boolean; message: string }>(`/api/admin/access-requests/${id}/approve`, {
       method: "POST",
       body: JSON.stringify({ notes, defaultCaseId, assignedRole }),
@@ -234,6 +234,7 @@ export const caseApi = {
       cdrs: any[];
       financials: any[];
       intels: any[];
+      observations?: any[];
     }>(`/api/cases/${caseId}/state`);
   },
 

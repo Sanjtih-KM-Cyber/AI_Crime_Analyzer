@@ -26,11 +26,17 @@ import {
 interface MyCasesViewProps {
   onSelectCase: (caseDataset: CaseDataset) => void;
   allSystemCases: CaseDataset[];
+  onCreateNewCase?: () => void;
+  onClose?: () => void;
+  activeCaseId?: string;
 }
 
 export const MyCasesView: React.FC<MyCasesViewProps> = ({
   onSelectCase,
   allSystemCases,
+  onCreateNewCase,
+  onClose,
+  activeCaseId,
 }) => {
   const { user, logout, refreshAuthorizedCases } = useAuth();
 
@@ -160,14 +166,34 @@ export const MyCasesView: React.FC<MyCasesViewProps> = ({
               : "ADMIN"}
           </div>
 
+          {onCreateNewCase && (
+            <button
+              onClick={onCreateNewCase}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/10 active:scale-95"
+              title="Create New Case Operation"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+              <span>+ New Case</span>
+            </button>
+          )}
+
           <button
             onClick={() => handleOpenRequestModal()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-all shadow-md shadow-amber-500/10"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition-all"
           >
-            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <Plus className="w-3.5 h-3.5 stroke-[3] text-amber-400" />
             <span className="hidden sm:inline">Request Case Access</span>
             <span className="sm:hidden">Request</span>
           </button>
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+            >
+              <span>Back to Case</span>
+            </button>
+          )}
 
           <button
             onClick={logout}

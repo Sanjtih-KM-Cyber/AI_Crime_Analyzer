@@ -183,13 +183,15 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         const s = typeof d.source === "object" ? d.source.id : d.source;
         const t = typeof d.target === "object" ? d.target.id : d.target;
         const isPatternLink = highlightedPatternLinkIds.includes(d.id);
+        const pathNodes = shortestPath?.path || shortestPath?.hops || [];
         const isShortestPathLink =
           shortestPath &&
-          shortestPath.hops.some(
-            (h, i) =>
-              (h === s && shortestPath.hops[i + 1] === t) ||
-              (h === t && shortestPath.hops[i + 1] === s)
-          );
+          (shortestPath.links?.includes(d.id) ||
+            pathNodes.some(
+              (h, i) =>
+                (h === s && pathNodes[i + 1] === t) ||
+                (h === t && pathNodes[i + 1] === s)
+            ));
 
         if (isShortestPathLink) return "#f59e0b";
         if (isPatternLink) return "#f43f5e";
@@ -200,13 +202,15 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       .attr("stroke-width", (d) => {
         const s = typeof d.source === "object" ? d.source.id : d.source;
         const t = typeof d.target === "object" ? d.target.id : d.target;
+        const pathNodes = shortestPath?.path || shortestPath?.hops || [];
         const isShortestPathLink =
           shortestPath &&
-          shortestPath.hops.some(
-            (h, i) =>
-              (h === s && shortestPath.hops[i + 1] === t) ||
-              (h === t && shortestPath.hops[i + 1] === s)
-          );
+          (shortestPath.links?.includes(d.id) ||
+            pathNodes.some(
+              (h, i) =>
+                (h === s && pathNodes[i + 1] === t) ||
+                (h === t && pathNodes[i + 1] === s)
+            ));
         if (isShortestPathLink) return 3.5;
         if (highlightedPatternLinkIds.includes(d.id)) return 3;
         if (hoveredNodeId && isLinkConnectedToHovered(s, t)) return 2.5;
@@ -469,13 +473,15 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       simLinks.forEach((link: any) => {
         if (!link.source || !link.target || typeof link.source !== "object" || typeof link.target !== "object") return;
         const isPattern = activePatternLinkIds.includes(link.id);
+        const pathNodes = activeShortest?.path || activeShortest?.hops || [];
         const isShortest =
           activeShortest &&
-          activeShortest.hops.some(
-            (h, i) =>
-              (h === link.source.id && activeShortest.hops[i + 1] === link.target.id) ||
-              (h === link.target.id && activeShortest.hops[i + 1] === link.source.id)
-          );
+          (activeShortest.links?.includes(link.id) ||
+            pathNodes.some(
+              (h, i) =>
+                (h === link.source.id && pathNodes[i + 1] === link.target.id) ||
+                (h === link.target.id && pathNodes[i + 1] === link.source.id)
+            ));
 
         // Hover focus & fading: fade links that are not connected to the hovered node
         const isHoverConnected = isLinkConnectedToHoveredRef.current(link.source.id, link.target.id);
@@ -531,7 +537,8 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         const isDirectNeighbor = isNodeConnectedToHoveredRef.current(node.id);
         const isKingpin = node.isKingpinCandidate;
         const isPattern = activePatternNodeIds.includes(node.id);
-        const isShortest = activeShortest && activeShortest.hops.includes(node.id);
+        const pathNodes = activeShortest?.path || activeShortest?.hops || [];
+        const isShortest = activeShortest && pathNodes.includes(node.id);
 
         // Alpha fading for unconnected nodes during hover
         const nodeAlpha = activeHoverId ? (isDirectNeighbor ? 1.0 : 0.12) : 1.0;
@@ -847,31 +854,39 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       .style("transition", "opacity 0.2s ease, stroke-width 0.2s ease")
       .attr("stroke", (d) => {
         const isPatternLink = highlightedPatternLinkIds.includes(d.id);
+        const sId = typeof d.source === "object" ? (d.source as any).id : d.source;
+        const tId = typeof d.target === "object" ? (d.target as any).id : d.target;
+        const pathNodes = shortestPath?.path || shortestPath?.hops || [];
         const isShortestPathLink =
           shortestPath &&
-          shortestPath.hops.some(
-            (h, i) =>
-              (h === (d.source as any).id && shortestPath.hops[i + 1] === (d.target as any).id) ||
-              (h === (d.target as any).id && shortestPath.hops[i + 1] === (d.source as any).id)
-          );
+          (shortestPath.links?.includes(d.id) ||
+            pathNodes.some(
+              (h, i) =>
+                (h === sId && pathNodes[i + 1] === tId) ||
+                (h === tId && pathNodes[i + 1] === sId)
+            ));
 
         if (isShortestPathLink) return "#f59e0b"; // Gold
         if (isPatternLink) return "#f43f5e"; // Rose Red
         if (d.category === "INVESTIGATOR_KNOWLEDGE") return "#c084fc"; // Purple for Hypotheses
-        if (hoveredNodeId && isLinkConnectedToHovered((d.source as any).id, (d.target as any).id)) return "#38bdf8";
+        if (hoveredNodeId && isLinkConnectedToHovered(sId, tId)) return "#38bdf8";
         return "rgba(100, 116, 139, 0.45)"; // Slate
       })
       .attr("stroke-width", (d) => {
+        const sId = typeof d.source === "object" ? (d.source as any).id : d.source;
+        const tId = typeof d.target === "object" ? (d.target as any).id : d.target;
+        const pathNodes = shortestPath?.path || shortestPath?.hops || [];
         const isShortestPathLink =
           shortestPath &&
-          shortestPath.hops.some(
-            (h, i) =>
-              (h === (d.source as any).id && shortestPath.hops[i + 1] === (d.target as any).id) ||
-              (h === (d.target as any).id && shortestPath.hops[i + 1] === (d.source as any).id)
-          );
+          (shortestPath.links?.includes(d.id) ||
+            pathNodes.some(
+              (h, i) =>
+                (h === sId && pathNodes[i + 1] === tId) ||
+                (h === tId && pathNodes[i + 1] === sId)
+            ));
         if (isShortestPathLink) return 3.5;
         if (highlightedPatternLinkIds.includes(d.id)) return 3;
-        if (hoveredNodeId && isLinkConnectedToHovered((d.source as any).id, (d.target as any).id)) return 2.5;
+        if (hoveredNodeId && isLinkConnectedToHovered(sId, tId)) return 2.5;
         return Math.min(4, Math.max(1.5, (d.weight || 1) * 0.8));
       })
       .attr("stroke-dasharray", (d) => {
@@ -925,18 +940,28 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 
     // Node Outer Glow / Halo
     node
-      .filter((d) => d.id === hoveredNodeId || d.isKingpinCandidate || (shortestPath && shortestPath.hops.includes(d.id)) || highlightedPatternNodeIds.includes(d.id))
+      .filter((d) => {
+        const pathNodes = shortestPath?.path || shortestPath?.hops || [];
+        return (
+          d.id === hoveredNodeId ||
+          d.isKingpinCandidate ||
+          (shortestPath && pathNodes.includes(d.id)) ||
+          highlightedPatternNodeIds.includes(d.id)
+        );
+      })
       .append("circle")
       .attr("r", (d) => getNodeRadius(d) + (d.id === hoveredNodeId ? 9 : 8))
       .attr("fill", (d) => {
+        const pathNodes = shortestPath?.path || shortestPath?.hops || [];
         if (d.id === hoveredNodeId) return "rgba(56, 189, 248, 0.35)";
-        if (shortestPath && shortestPath.hops.includes(d.id)) return "rgba(245, 158, 11, 0.25)";
+        if (shortestPath && pathNodes.includes(d.id)) return "rgba(245, 158, 11, 0.25)";
         if (highlightedPatternNodeIds.includes(d.id)) return "rgba(244, 63, 94, 0.3)";
         return "rgba(245, 158, 11, 0.2)";
       })
       .attr("stroke", (d) => {
+        const pathNodes = shortestPath?.path || shortestPath?.hops || [];
         if (d.id === hoveredNodeId) return "#38bdf8";
-        if (shortestPath && shortestPath.hops.includes(d.id)) return "#f59e0b";
+        if (shortestPath && pathNodes.includes(d.id)) return "#f59e0b";
         if (highlightedPatternNodeIds.includes(d.id)) return "#f43f5e";
         return "#eab308";
       })

@@ -41,7 +41,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 }) => {
   const [sourceSuspectId, setSourceSuspectId] = useState<string>("");
   const [targetSuspectId, setTargetSuspectId] = useState<string>("");
+  const [trailPreference, setTrailPreference] = useState<"ALL" | "HAWALA_FINANCIAL" | "TELECOM_CDR">("ALL");
   const [pathResult, setPathResult] = useState<ShortestPathResult | null>(null);
+  const [pathError, setPathError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"betweenness" | "degree" | "pageRank" | "riskScore">("betweenness");
 
   // Sorted list of nodes by chosen centrality metric
@@ -54,14 +56,32 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
   const handleCalculatePath = () => {
     if (!sourceSuspectId || !targetSuspectId) return;
-    const res = findShortestPath(sourceSuspectId, targetSuspectId, nodes, links);
+    setPathError(null);
+    const res = findShortestPath(sourceSuspectId, targetSuspectId, nodes, links, trailPreference);
+    if (!res) {
+      setPathError("No connected intermediary route was found between the selected entities under current constraints.");
+      setPathResult(null);
+      onSetShortestPath(null);
+      return;
+    }
     setPathResult(res);
     onSetShortestPath(res);
   };
 
   const handleClearPath = () => {
     setPathResult(null);
+    setPathError(null);
     onSetShortestPath(null);
+  };
+
+  const handleQuickSelect = (srcId: string, tgtId: string, mode: "ALL" | "HAWALA_FINANCIAL" | "TELECOM_CDR" = "ALL") => {
+    setSourceSuspectId(srcId);
+    setTargetSuspectId(tgtId);
+    setTrailPreference(mode);
+    setPathError(null);
+    const res = findShortestPath(srcId, tgtId, nodes, links, mode);
+    setPathResult(res);
+    onSetShortestPath(res);
   };
 
   return (
@@ -127,7 +147,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
       {/* Intermediary Path Finder (Shortest Path & Money Mule Conduits) */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 border border-amber-500/20">
               <Share2 className="w-5 h-5" />
@@ -140,6 +160,61 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 Trace shortest communication links, hawala transfers, and proxy messengers connecting any two suspects.
               </p>
             </div>
+          </div>
+
+          {/* Trail Preference Selector */}
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+            <button
+              onClick={() => {
+                setTrailPreference("ALL");
+                if (sourceSuspectId && targetSuspectId) {
+                  const res = findShortestPath(sourceSuspectId, targetSuspectId, nodes, links, "ALL");
+                  setPathResult(res);
+                  onSetShortestPath(res);
+                }
+              }}
+              className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                trailPreference === "ALL"
+                  ? "bg-amber-500 text-slate-950 font-bold"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              All Relational
+            </button>
+            <button
+              onClick={() => {
+                setTrailPreference("HAWALA_FINANCIAL");
+                if (sourceSuspectId && targetSuspectId) {
+                  const res = findShortestPath(sourceSuspectId, targetSuspectId, nodes, links, "HAWALA_FINANCIAL");
+                  setPathResult(res);
+                  onSetShortestPath(res);
+                }
+              }}
+              className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                trailPreference === "HAWALA_FINANCIAL"
+                  ? "bg-amber-500 text-slate-950 font-bold"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Hawala / Money Trail
+            </button>
+            <button
+              onClick={() => {
+                setTrailPreference("TELECOM_CDR");
+                if (sourceSuspectId && targetSuspectId) {
+                  const res = findShortestPath(sourceSuspectId, targetSuspectId, nodes, links, "TELECOM_CDR");
+                  setPathResult(res);
+                  onSetShortestPath(res);
+                }
+              }}
+              className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                trailPreference === "TELECOM_CDR"
+                  ? "bg-amber-500 text-slate-950 font-bold"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Telecom / CDR Bridge
+            </button>
           </div>
         </div>
 
@@ -181,6 +256,26 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </div>
         </div>
 
+        {/* Quick presets for rapid investigation */}
+        {nodes.length >= 2 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="text-[11px] font-semibold text-slate-500">Quick Test Pairs:</span>
+            {nodes.slice(0, 3).map((n1, idx) => {
+              const n2 = nodes[(idx + 2) % nodes.length];
+              if (!n2 || n1.id === n2.id) return null;
+              return (
+                <button
+                  key={`${n1.id}-${n2.id}`}
+                  onClick={() => handleQuickSelect(n1.id, n2.id, trailPreference)}
+                  className="px-2 py-0.5 bg-slate-800/80 hover:bg-slate-800 text-[11px] text-slate-300 rounded border border-slate-700"
+                >
+                  {n1.label} ➔ {n2.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="mt-4 flex items-center gap-3">
           <button
             onClick={handleCalculatePath}
@@ -201,23 +296,33 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           )}
         </div>
 
+        {/* Path Error Box */}
+        {pathError && (
+          <div className="mt-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-xs text-rose-300 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{pathError}</span>
+          </div>
+        )}
+
         {/* Path Result Box */}
         {pathResult && (
-          <div className="mt-4 p-4 bg-slate-950 border border-amber-500/40 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mt-4 p-4 bg-slate-950 border border-amber-500/40 rounded-lg space-y-3">
+            <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                 <FileCheck className="w-4 h-4" />
-                Intermediary Chain ({pathResult.totalHops} Hops)
+                Intermediary Chain ({pathResult.totalHops} Hops) &bull; {pathResult.trailType || "Relational"}
               </span>
               <button
                 onClick={onSwitchToGraph}
-                className="text-xs text-amber-400 hover:underline font-semibold"
+                className="text-xs text-amber-400 hover:text-amber-300 hover:underline font-semibold flex items-center gap-1"
               >
                 Highlight on Canvas →
               </button>
             </div>
-            <p className="text-xs text-slate-300 mb-3">{pathResult.summary}</p>
-            <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-slate-300">{pathResult.summary}</p>
+            
+            {/* Visual Node Flow */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               {pathResult.path.map((nodeId, idx) => {
                 const node = nodes.find((n) => n.id === nodeId);
                 return (
@@ -236,6 +341,28 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 );
               })}
             </div>
+
+            {/* Step-by-step breakdown */}
+            {pathResult.steps && pathResult.steps.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-800 space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Conduit Breakdown:</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {pathResult.steps.map((step, sIdx) => (
+                    <div key={sIdx} className="p-2 rounded bg-slate-900/90 border border-slate-800 text-xs">
+                      <div className="flex items-center justify-between text-slate-300 font-medium">
+                        <span className="text-amber-400 font-mono">Step {sIdx + 1}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                          {step.relationType}
+                        </span>
+                      </div>
+                      <div className="text-slate-300 mt-1 text-[11px]">
+                        {step.fromLabel} ➔ <span className="text-amber-300">{step.toLabel}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

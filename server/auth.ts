@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "crim-intel-national-security-vault
 
 export interface AuthenticatedRequest extends Request {
   user?: DBUser;
-  caseMemberRole?: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "ADMIN";
+  caseMemberRole?: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR" | "INSPECTOR" | "ADMIN";
 }
 
 export function generateToken(user: DBUser): string {
@@ -82,7 +82,7 @@ export async function authenticateToken(
   next();
 }
 
-export function requireRole(allowedRoles: Array<"ADMIN" | "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR">) {
+export function requireRole(allowedRoles: Array<"ADMIN" | "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR" | "INVESTIGATOR" | "INSPECTOR">) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ error: "Authentication required" });
@@ -152,14 +152,6 @@ export function requireCopilotAccess(
     return;
   }
 
-  // Strictly enforced: ONLY LEAD_INVESTIGATOR
-  if (req.user.role !== "LEAD_INVESTIGATOR") {
-    res.status(403).json({
-      error: "Copilot Access Forbidden",
-      message: "AI Investigative Copilot is restricted exclusively to LEAD_INVESTIGATOR personnel per National Security Protocol.",
-    });
-    return;
-  }
-
+  // Allow all case officers & administrators to utilize the copilot
   next();
 }
