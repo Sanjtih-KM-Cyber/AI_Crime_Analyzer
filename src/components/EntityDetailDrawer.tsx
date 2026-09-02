@@ -23,7 +23,9 @@ import {
   Send,
   GitMerge,
   ExternalLink,
+  Scan,
 } from "lucide-react";
+import { DocumentPreviewer } from "./DocumentPreviewer";
 
 interface EntityDetailDrawerProps {
   node: CrimeNetworkNode | null;
@@ -49,6 +51,7 @@ export const EntityDetailDrawer: React.FC<EntityDetailDrawerProps> = ({
   onSelectLink,
 }) => {
   const [newNoteText, setNewNoteText] = useState("");
+  const [showDocPreview, setShowDocPreview] = useState(false);
 
   if (!node) return null;
 
@@ -257,10 +260,24 @@ export const EntityDetailDrawer: React.FC<EntityDetailDrawerProps> = ({
                   <Quote className="w-3.5 h-3.5" />
                   <span>Evidence-Derived Source Citations</span>
                 </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  {node.sourceSnippets?.length || 1} Document Sources
-                </span>
+                <button
+                  onClick={() => setShowDocPreview(!showDocPreview)}
+                  className="text-[10px] font-mono font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800 transition-colors"
+                >
+                  <Scan className="w-3 h-3" />
+                  <span>{showDocPreview ? "Hide Original PDF" : "Inspect Raw Scanned Doc"}</span>
+                </button>
               </div>
+
+              {showDocPreview && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                  <DocumentPreviewer
+                    fallbackDocumentName={node.sourceSnippets?.[0]?.docName || "FIR_209_SpecialCell_CrimeBranch.pdf"}
+                    excerptText={node.sourceSnippets?.[0]?.snippet || node.details?.notes}
+                    locator={node.sourceSnippets?.[0]?.locator || `Page ${node.sourceSnippets?.[0]?.page || 1}`}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 {node.sourceSnippets && node.sourceSnippets.length > 0 ? (

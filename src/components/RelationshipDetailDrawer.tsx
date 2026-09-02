@@ -16,8 +16,10 @@ import {
   Quote,
   Layers,
   Sparkles,
+  Scan,
 } from "lucide-react";
 import { CrimeNetworkLink, CrimeNetworkNode, ReviewState, InvestigatorNote } from "../types";
+import { DocumentPreviewer } from "./DocumentPreviewer";
 
 interface RelationshipDetailDrawerProps {
   link: CrimeNetworkLink;
@@ -37,6 +39,7 @@ export const RelationshipDetailDrawer: React.FC<RelationshipDetailDrawerProps> =
   onAddNote,
 }) => {
   const [newNoteText, setNewNoteText] = useState("");
+  const [showDocumentPreview, setShowDocumentPreview] = useState(false);
   const currentReview = link.reviewState || "NEEDS_REVIEW";
 
   const handleAddNoteSubmit = (e: React.FormEvent) => {
@@ -223,10 +226,25 @@ export const RelationshipDetailDrawer: React.FC<RelationshipDetailDrawerProps> =
               <Quote className="w-3.5 h-3.5" />
               <span>Verified Source Document Excerpt</span>
             </span>
-            <span className="text-[10px] font-mono text-slate-400">
-              Confidence: {Math.round((link.evidenceDetail?.confidence || 0.9) * 100)}%
-            </span>
+            <button
+              onClick={() => setShowDocumentPreview(!showDocumentPreview)}
+              className="text-[10px] font-mono font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-800 transition-colors"
+            >
+              <Scan className="w-3 h-3" />
+              <span>{showDocumentPreview ? "Hide Original PDF" : "Inspect Raw Scanned Doc"}</span>
+            </button>
           </div>
+
+          {showDocumentPreview && (
+            <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+              <DocumentPreviewer
+                evidenceDetail={link.evidenceDetail}
+                fallbackDocumentName={link.sourceDocumentId}
+                excerptText={link.evidenceDetail?.excerpt || link.details}
+                locator={link.evidenceDetail?.locator}
+              />
+            </div>
+          )}
 
           <div className="p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl space-y-2.5">
             <div className="flex items-center justify-between text-[11px] pb-2 border-b border-slate-800/80">

@@ -35,12 +35,104 @@ export type AIProcessingEngine =
   | "GROQ_LPU"
   | "GEMINI_37";
 
-// Multi-Investigator RBAC
+// Core 3 Application Roles strictly per specifications
 export type UserRole =
+  | "ADMIN"
   | "LEAD_INVESTIGATOR"
-  | "INTEL_ANALYST"
-  | "CYBER_FORENSIC"
-  | "LEGAL_MAGISTRATE";
+  | "FORENSIC_INVESTIGATOR";
+
+export type UserStatus = "PENDING" | "ACTIVE" | "REJECTED" | "SUSPENDED";
+
+export interface UserAccount {
+  _id: string;
+  name: string;
+  official_id: string;
+  email: string;
+  agency: string;
+  designation: string;
+  department: string;
+  role: UserRole;
+  status: UserStatus;
+  created_at: string;
+  approved_by?: string;
+  approved_at?: string;
+  last_login?: string;
+  avatarColor?: string;
+}
+
+export interface AccessRequest {
+  _id: string;
+  full_name: string;
+  official_id: string;
+  official_email: string;
+  agency: string;
+  designation: string;
+  department: string;
+  requested_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  reason_for_access: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  submitted_at: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  notes?: string;
+}
+
+export interface CaseMember {
+  _id: string;
+  case_id: string;
+  user_id: string;
+  user_name?: string;
+  user_email?: string;
+  official_id?: string;
+  agency?: string;
+  role: UserRole;
+  status: "ACTIVE" | "INACTIVE";
+  assigned_at: string;
+  assigned_by?: string;
+}
+
+export interface CaseAccessRequest {
+  _id: string;
+  case_id: string;
+  case_name: string;
+  case_code: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  official_id: string;
+  agency: string;
+  user_role: "LEAD_INVESTIGATOR" | "FORENSIC_INVESTIGATOR";
+  reason_for_access: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  requested_at: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  review_notes?: string;
+}
+
+export type EvidenceLifecycleStatus =
+  | "UPLOADED"
+  | "PROCESSING"
+  | "VALIDATED"
+  | "COMMITTED";
+
+export interface RealtimeCaseUpdate {
+  type: "CASE_UPDATED" | "EVIDENCE_COMMITTED" | "EVIDENCE_UPLOADED" | "ALERT_CREATED";
+  case_id: string;
+  event_type: string;
+  title: string;
+  message: string;
+  changes: {
+    new_evidence?: number;
+    new_entities?: number;
+    new_relationships?: number;
+    new_alerts?: number;
+  };
+  evidence_id?: string;
+  actor_name?: string;
+  actor_role?: UserRole;
+  timestamp: string;
+}
 
 export interface InvestigatorProfile {
   id: string;
@@ -49,6 +141,7 @@ export interface InvestigatorProfile {
   role: UserRole;
   rank: string;
   department: string;
+  agency?: string;
   avatarColor: string;
   status: "ACTIVE_DUTY" | "IN_FIELD" | "COURT_HEARING";
   currentActivity?: string;

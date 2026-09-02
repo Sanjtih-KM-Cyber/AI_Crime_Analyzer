@@ -19,6 +19,8 @@ import {
   Zap,
   Plus,
   Menu,
+  FolderArchive,
+  LogOut,
 } from "lucide-react";
 import { CaseDataset, CrimeNetworkNode, InvestigatorProfile } from "../types";
 
@@ -31,6 +33,7 @@ interface HeaderProps {
   onOpenDossier: () => void;
   onOpenCopilot: () => void;
   onOpenNewCase: () => void;
+  onOpenArchive?: () => void;
   onOpenMobileMenu: () => void;
   nodes: CrimeNetworkNode[];
   onSelectNode: (node: CrimeNetworkNode) => void;
@@ -39,6 +42,8 @@ interface HeaderProps {
   kingpinCount: number;
   patternCount: number;
   currentOfficer?: InvestigatorProfile;
+  onLogout?: () => void;
+  onOpenMyCases?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -50,6 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDossier,
   onOpenCopilot,
   onOpenNewCase,
+  onOpenArchive,
   onOpenMobileMenu,
   nodes,
   onSelectNode,
@@ -58,6 +64,8 @@ export const Header: React.FC<HeaderProps> = ({
   kingpinCount,
   patternCount,
   currentOfficer,
+  onLogout,
+  onOpenMyCases,
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -192,6 +200,18 @@ export const Header: React.FC<HeaderProps> = ({
             <Search className="w-4 h-4" />
           </button>
 
+          {/* Switch Case / My Workspaces Button */}
+          {onOpenMyCases && (
+            <button
+              onClick={onOpenMyCases}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition-all active:scale-95"
+              title="View All Authorized Operations & Request Case Access"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">My Workspaces</span>
+            </button>
+          )}
+
           {/* + New Case Button (PROMINENT) */}
           <button
             onClick={onOpenNewCase}
@@ -203,21 +223,49 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="sm:hidden text-[11px]">New</span>
           </button>
 
+          {/* Offline Case Archive Export/Import Trigger */}
+          {onOpenArchive && (
+            <button
+              onClick={onOpenArchive}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-700 text-amber-400 text-xs font-semibold transition-all active:scale-95"
+              title="Export / Import Case Archive File (.json)"
+            >
+              <FolderArchive className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Archive / Backup</span>
+            </button>
+          )}
+
           {/* Active Officer RBAC Trigger */}
           {currentOfficer && (
             <button
               onClick={() => onTabChange("rbac")}
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-mono transition-all active:scale-95"
-              title="Switch Officer Role & View Chain-of-Custody Audit"
+              title="View Authenticated Credentials & Security Scope"
             >
               <span
                 className="w-2.5 h-2.5 rounded-full animate-pulse"
                 style={{ backgroundColor: currentOfficer.avatarColor || "#f59e0b" }}
               />
               <span className="hidden md:inline font-semibold text-slate-200">{currentOfficer.name.split(" ")[0]}</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-slate-950 text-amber-400 border border-slate-800">
-                {currentOfficer.role === "LEAD_INVESTIGATOR" ? "SP" : currentOfficer.role === "INTEL_ANALYST" ? "ANALYST" : currentOfficer.role === "CYBER_FORENSIC" ? "FORENSIC" : "LEGAL"}
+              <span className="text-[9px] px-1 py-0.2 rounded bg-slate-950 text-amber-400 border border-slate-800 font-bold">
+                {currentOfficer.role === "ADMIN"
+                  ? "ADMIN"
+                  : currentOfficer.role === "LEAD_INVESTIGATOR"
+                  ? "LEAD IO"
+                  : "FORENSIC"}
               </span>
+            </button>
+          )}
+
+          {/* Sign Out Button */}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-slate-900 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-300 text-xs font-mono transition-all flex items-center gap-1.5 active:scale-95"
+              title="Sign Out of Session"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">Sign Out</span>
             </button>
           )}
 

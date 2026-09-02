@@ -12,6 +12,7 @@ import {
   IntelRecord,
   ReviewState,
   EvidenceFileRecord,
+  InvestigatorProfile,
 } from "./types";
 import {
   SAMPLE_CASES,
@@ -23,10 +24,14 @@ import {
   GARUDA_INTEL,
   SHADOWVAULT_NODES,
   SHADOWVAULT_LINKS,
-  INVESTIGATOR_PROFILES,
   INITIAL_AUDIT_LOGS,
 } from "./data/mockDatasets";
 import { computeGraphAnalytics, detectSuspiciousPatterns } from "./services/graphEngine";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { LoginView } from "./components/auth/LoginView";
+import { AdminPortal } from "./components/admin/AdminPortal";
+import { ForensicPortal } from "./components/forensic/ForensicPortal";
+import { MyCasesView } from "./components/cases/MyCasesView";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
 import { OverviewDashboard } from "./components/OverviewDashboard";
@@ -42,16 +47,64 @@ import { AddEvidenceModal } from "./components/AddEvidenceModal";
 import { AiCopilotDrawer } from "./components/AiCopilotDrawer";
 import { DossierModal } from "./components/DossierModal";
 import { CreateCaseModal } from "./components/CreateCaseModal";
+import { CaseArchiveManager, CaseArchivePayload } from "./components/CaseArchiveManager";
 import { MobileBottomNav } from "./components/MobileBottomNav";
+import { Shield, Radio } from "lucide-react";
 
-export default function App() {
+function WorkstationApp() {
+  const { user, isAuthenticated, isLoading, logout, realtimeNotification, clearNotification } = useAuth();
+
   // Case Datasets
   const [allCases, setAllCases] = useState<CaseDataset[]>(SAMPLE_CASES);
   const [currentCase, setCurrentCase] = useState<CaseDataset>(SAMPLE_CASES[0]);
-
-  // Active Multi-Investigator Session & Cryptographic Chain-of-Custody Audit
-  const [currentOfficer, setCurrentOfficer] = useState(INVESTIGATOR_PROFILES[0]);
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
+
+  // Active Officer Profile derived from authenticated user
+  const currentOfficer: InvestigatorProfile = useMemo(() => {
+    if (!user) {
+      return {
+        id: "OFFICER-001",
+        name: "SP Vikramaditya Rathore, IPS",
+        rank: "Superintendent of Police",
+        badgeNumber: "NCB-SIT-774",
+        department: "Special Task Force & Intelligence",
+        agency: "Narcotics Control Bureau (NCB)",
+        role: "LEAD_INVESTIGATOR",
+        avatarColor: "#f59e0b",
+        status: "ACTIVE",
+        currentActivity: "Active Syndicate Interdiction",
+        permissions: {
+          canSignDossier: true,
+          canConfirmEvidence: true,
+          canRejectEvidence: true,
+          canAddHypothesis: true,
+          canIngestData: true,
+          canExportData: true,
+        },
+      };
+    }
+
+    return {
+      id: user._id,
+      name: user.name,
+      rank: user.designation,
+      badgeNumber: user.official_id,
+      department: user.department,
+      agency: user.agency,
+      role: user.role,
+      avatarColor: user.role === "ADMIN" ? "#6366f1" : user.role === "LEAD_INVESTIGATOR" ? "#f59e0b" : "#10b981",
+      status: "ACTIVE",
+      currentActivity: "Active Syndicate Interdiction & Graph Reasoning",
+      permissions: user.permissions || {
+        canSignDossier: user.role === "LEAD_INVESTIGATOR" || user.role === "ADMIN",
+        canConfirmEvidence: user.role === "LEAD_INVESTIGATOR" || user.role === "ADMIN",
+        canRejectEvidence: user.role === "LEAD_INVESTIGATOR" || user.role === "ADMIN",
+        canAddHypothesis: user.role === "LEAD_INVESTIGATOR" || user.role === "ADMIN",
+        canIngestData: true,
+        canExportData: true,
+      },
+    };
+  }, [user]);
 
   // Case-specific data cache to preserve newly added records across case switching
   const [caseDataMap, setCaseDataMap] = useState<
@@ -116,6 +169,45 @@ export default function App() {
   const [isDossierOpen, setIsDossierOpen] = useState(false);
   const [isCreateCaseOpen, setIsCreateCaseOpen] = useState(false);
   const [isAddEvidenceOpen, setIsAddEvidenceOpen] = useState(false);
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [isCasesViewOpen, setIsCasesViewOpen] = useState(false);
+
+  // Import Archive Handler
+  const handleImportCaseArchive = (payload: CaseArchivePayload) => {
+    const importedCase = payload.caseMetadata;
+    setAllCases((prev) => {
+      const exists = prev.find((c) => c.id === importedCase.id);
+      if (exists) {
+        return prev.map((c) => (c.id === importedCase.id ? importedCase : c));
+      }
+      return [importedCase, ...prev];
+    });
+
+    setCaseDataMap((prev) => ({
+      ...prev,
+      [importedCase.id]: {
+        nodes: payload.graphData.nodes,
+        links: payload.graphData.links,
+        firs: payload.evidenceRecords.firs || [],
+        cdrs: payload.evidenceRecords.cdrs || [],
+        financials: payload.evidenceRecords.financials || [],
+        intels: payload.evidenceRecords.intels || [],
+        evidenceFiles: payload.evidenceRecords.evidenceFiles || importedCase.evidenceFiles,
+      },
+    }));
+
+    setCurrentCase(importedCase);
+    setNodes(payload.graphData.nodes);
+    setLinks(payload.graphData.links);
+    setFirs(payload.evidenceRecords.firs || []);
+    setCdrs(payload.evidenceRecords.cdrs || []);
+    setFinancials(payload.evidenceRecords.financials || []);
+    setIntels(payload.evidenceRecords.intels || []);
+
+    if (payload.auditLogs && payload.auditLogs.length > 0) {
+      setAuditLogs((prev) => [...payload.auditLogs, ...prev]);
+    }
+  };
 
   // Save current case state to caseDataMap whenever nodes/links change
   useEffect(() => {
@@ -164,7 +256,6 @@ export default function App() {
       setFinancials([]);
       setIntels([]);
     } else {
-      // Blank or newly initialized case
       setNodes(targetCase.nodes || []);
       setLinks(targetCase.links || []);
       setFirs(targetCase.firs || []);
@@ -180,10 +271,8 @@ export default function App() {
     initialNodes: CrimeNetworkNode[],
     initialLinks: CrimeNetworkLink[]
   ) => {
-    // 1. Update Cases List
     setAllCases((prev) => [newCase, ...prev]);
 
-    // 2. Cache new case data
     setCaseDataMap((prev) => ({
       ...prev,
       [newCase.id]: {
@@ -197,7 +286,6 @@ export default function App() {
       },
     }));
 
-    // 3. Switch current active case and data
     setCurrentCase(newCase);
     setNodes(initialNodes);
     setLinks(initialLinks);
@@ -210,7 +298,6 @@ export default function App() {
     setShortestPath(null);
     setSelectedPattern(null);
 
-    // 4. Navigate to graph or overview
     if (initialNodes.length > 0) {
       setActiveTab("graph");
     } else {
@@ -236,7 +323,7 @@ export default function App() {
     return selectedPattern ? selectedPattern.involvedLinkIds : [];
   }, [selectedPattern]);
 
-  // Handler for Ingesting Extracted NLP / CDR / Financial data (Bulk up to 15GB)
+  // Handler for Ingesting Extracted NLP / CDR / Financial data
   const handleIngestExtractedData = (
     newNodes: CrimeNetworkNode[],
     newLinks: CrimeNetworkLink[],
@@ -244,14 +331,12 @@ export default function App() {
     newFins?: FinancialRecord[],
     newEvidenceFiles?: EvidenceFileRecord[]
   ) => {
-    // Merge unique nodes by ID
     setNodes((prev) => {
       const existingIds = new Set(prev.map((n) => n.id));
       const filtered = newNodes.filter((n) => !existingIds.has(n.id));
       return [...prev, ...filtered];
     });
 
-    // Merge unique links by ID
     setLinks((prev) => {
       const existingLinkIds = new Set(prev.map((l) => l.id));
       const filtered = newLinks.filter((l) => !existingLinkIds.has(l.id));
@@ -289,7 +374,7 @@ export default function App() {
     const newNote = {
       id: `NOTE-${Date.now()}`,
       targetId: nodeId,
-      author: "Investigating Officer (IO)",
+      author: `${currentOfficer.name} (${currentOfficer.rank})`,
       text: noteText,
       timestamp: new Date().toISOString(),
     };
@@ -330,7 +415,7 @@ export default function App() {
     const newNote = {
       id: `NOTE-LINK-${Date.now()}`,
       targetId: linkId,
-      author: "Investigating Officer (IO)",
+      author: `${currentOfficer.name} (${currentOfficer.rank})`,
       text: noteText,
       timestamp: new Date().toISOString(),
     };
@@ -356,8 +441,7 @@ export default function App() {
     }
   };
 
-  // Handler to initiate path finding from entity drawer
-  const handleInitiatePathFind = (sourceNodeId: string) => {
+  const handleInitiatePathFind = () => {
     setSelectedNode(null);
     setActiveTab("analytics");
   };
@@ -372,7 +456,6 @@ export default function App() {
     setActiveTab("patterns");
   };
 
-  // Find source & target for selectedLink
   const linkSourceNode = selectedLink
     ? analyzedNodes.find(
         (n) => n.id === (typeof selectedLink.source === "object" ? (selectedLink.source as any).id : selectedLink.source)
@@ -385,8 +468,75 @@ export default function App() {
       ) || { id: "unknown", label: "Unknown Target", type: "PERSON" as const, riskScore: 50, confidence: 0.5 }
     : null;
 
+  // View Routing based on Auth & Role
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center text-slate-100 space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <Shield className="w-6 h-6 animate-pulse" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-sm font-bold tracking-tight text-slate-100 font-mono">CRIM-INTEL OS v4.2</h2>
+          <p className="text-xs text-slate-400 font-mono mt-1">Initializing Air-Gapped Unified Vault & Security Clearance...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return <LoginView />;
+  }
+
+  // 1. Role = ADMIN -> Render Admin Portal
+  if (user.role === "ADMIN") {
+    return <AdminPortal />;
+  }
+
+  // 2. Role = FORENSIC_INVESTIGATOR -> Render Forensic Lab Portal
+  if (user.role === "FORENSIC_INVESTIGATOR") {
+    return <ForensicPortal />;
+  }
+
+  // 3. User requested to switch/browse case workspaces
+  if (isCasesViewOpen) {
+    return (
+      <MyCasesView
+        allSystemCases={allCases}
+        onSelectCase={(selectedCase) => {
+          handleSelectCase(selectedCase);
+          setIsCasesViewOpen(false);
+        }}
+      />
+    );
+  }
+
+  // 4. Role = LEAD_INVESTIGATOR -> Full Crime Intelligence Graph Workstation
   return (
     <div className="h-screen w-screen bg-slate-950 text-slate-100 flex overflow-hidden font-sans selection:bg-amber-500 selection:text-slate-950">
+      {/* Real-time Update Toast */}
+      {realtimeNotification && (
+        <div className="fixed top-4 right-4 z-50 p-4 rounded-2xl bg-slate-900/95 border border-amber-500/50 shadow-2xl backdrop-blur-md max-w-sm animate-in slide-in-from-top duration-200">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <strong className="text-xs font-bold text-amber-300 uppercase font-mono">
+                {realtimeNotification.type}
+              </strong>
+            </div>
+            <button
+              onClick={clearNotification}
+              className="text-slate-400 hover:text-slate-200 text-xs font-mono"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="text-xs text-slate-200 mt-1.5">{realtimeNotification.details}</p>
+          <div className="mt-2 text-[10px] font-mono text-slate-400">
+            By: {realtimeNotification.user_name} ({realtimeNotification.user_role})
+          </div>
+        </div>
+      )}
+
       {/* 1. Collapsible Professional Left Sidebar */}
       <Sidebar
         currentCase={currentCase}
@@ -397,6 +547,7 @@ export default function App() {
         onOpenCopilot={() => setIsCopilotOpen(true)}
         onOpenDossier={() => setIsDossierOpen(true)}
         onOpenNewCase={() => setIsCreateCaseOpen(true)}
+        onOpenMyCases={() => setIsCasesViewOpen(true)}
         nodeCount={analyzedNodes.length}
         kingpinCount={analyzedNodes.filter((n) => n.isKingpinCandidate).length}
         cutVertexCount={cutVertices.length}
@@ -419,6 +570,8 @@ export default function App() {
           onOpenDossier={() => setIsDossierOpen(true)}
           onOpenCopilot={() => setIsCopilotOpen(true)}
           onOpenNewCase={() => setIsCreateCaseOpen(true)}
+          onOpenArchive={() => setIsArchiveOpen(true)}
+          onOpenMyCases={() => setIsCasesViewOpen(true)}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           nodes={analyzedNodes}
           onSelectNode={handleSelectNodeAndFocus}
@@ -427,6 +580,7 @@ export default function App() {
           kingpinCount={analyzedNodes.filter((n) => n.isKingpinCandidate).length}
           patternCount={detectedPatterns.length}
           currentOfficer={currentOfficer}
+          onLogout={logout}
         />
 
         {/* Dynamic Workspace Container */}
@@ -447,6 +601,7 @@ export default function App() {
               onOpenDossier={() => setIsDossierOpen(true)}
               onOpenNewCase={() => setIsCreateCaseOpen(true)}
               onOpenAddEvidence={() => setIsAddEvidenceOpen(true)}
+              onOpenArchive={() => setIsArchiveOpen(true)}
             />
           )}
 
@@ -523,7 +678,6 @@ export default function App() {
           {activeTab === "rbac" && (
             <InvestigatorRbacHub
               currentOfficer={currentOfficer}
-              onSelectOfficer={setCurrentOfficer}
               auditLogs={auditLogs}
             />
           )}
@@ -603,6 +757,29 @@ export default function App() {
         patterns={detectedPatterns}
         communities={communities}
       />
+
+      {/* 10. Case Archive & Offline Backup Hub */}
+      <CaseArchiveManager
+        isOpen={isArchiveOpen}
+        onClose={() => setIsArchiveOpen(false)}
+        currentCase={currentCase}
+        nodes={nodes}
+        links={links}
+        firs={firs}
+        cdrs={cdrs}
+        financials={financials}
+        intels={intels}
+        auditLogs={auditLogs}
+        onImportArchive={handleImportCaseArchive}
+      />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <WorkstationApp />
+    </AuthProvider>
   );
 }

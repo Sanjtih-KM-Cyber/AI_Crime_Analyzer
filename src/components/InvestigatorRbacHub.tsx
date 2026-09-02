@@ -5,7 +5,6 @@ import {
   UserRole,
 } from "../types";
 import {
-  INVESTIGATOR_PROFILES,
   INITIAL_AUDIT_LOGS,
 } from "../data/mockDatasets";
 import {
@@ -13,28 +12,22 @@ import {
   Users,
   Lock,
   CheckCircle2,
-  FileCheck,
   Search,
   Key,
-  Award,
   Clock,
-  Download,
-  AlertCircle,
   Radio,
   FileText,
-  Eye,
-  UserCheck,
+  BadgeCheck,
+  ShieldAlert,
 } from "lucide-react";
 
 interface InvestigatorRbacHubProps {
   currentOfficer: InvestigatorProfile;
-  onSelectOfficer: (officer: InvestigatorProfile) => void;
   auditLogs?: AuditLogEntry[];
 }
 
 export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
   currentOfficer,
-  onSelectOfficer,
   auditLogs = INITIAL_AUDIT_LOGS,
 }) => {
   const [activeTab, setActiveTab] = useState<"profiles" | "audit" | "matrix">("profiles");
@@ -46,30 +39,30 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
     if (auditSearch.trim()) {
       const q = auditSearch.toLowerCase();
       return (
-        log.officerName.toLowerCase().includes(q) ||
-        log.actionType.toLowerCase().includes(q) ||
-        log.details.toLowerCase().includes(q) ||
-        log.targetLabel.toLowerCase().includes(q) ||
-        log.digitalHash.toLowerCase().includes(q)
+        (log.officerName || "").toLowerCase().includes(q) ||
+        (log.actionType || log.action || "").toLowerCase().includes(q) ||
+        (log.details || "").toLowerCase().includes(q) ||
+        (log.targetLabel || "").toLowerCase().includes(q) ||
+        (log.digitalHash || "").toLowerCase().includes(q)
       );
     }
     return true;
   });
 
-  const getRoleBadge = (role: UserRole) => {
+  const getRoleBadge = (role?: UserRole) => {
     switch (role) {
+      case "ADMIN":
+        return { label: "System Administrator", color: "bg-purple-500/20 text-purple-300 border-purple-500/40" };
       case "LEAD_INVESTIGATOR":
-        return { label: "Lead SP / Command", color: "bg-amber-500/20 text-amber-300 border-amber-500/40" };
-      case "INTEL_ANALYST":
-        return { label: "Intel Analyst", color: "bg-sky-500/20 text-sky-300 border-sky-500/40" };
-      case "CYBER_FORENSIC":
-        return { label: "Cyber Forensic Tech", color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" };
-      case "LEGAL_MAGISTRATE":
-        return { label: "Legal Prosecutor", color: "bg-purple-500/20 text-purple-300 border-purple-500/40" };
+        return { label: "Lead Investigator", color: "bg-amber-500/20 text-amber-300 border-amber-500/40" };
+      case "FORENSIC_INVESTIGATOR":
+        return { label: "Forensic Investigator", color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" };
       default:
-        return { label: role, color: "bg-slate-500/20 text-slate-300 border-slate-500/40" };
+        return { label: role || "Officer", color: "bg-slate-500/20 text-slate-300 border-slate-500/40" };
     }
   };
+
+  const activeOfficerBadge = getRoleBadge(currentOfficer.role);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -82,14 +75,14 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                MULTI-INVESTIGATOR CONCURRENCY & RBAC
+                CASE ACCESS GOVERNANCE & RBAC
               </span>
               <span className="text-[10px] font-mono text-slate-400">
                 IMMUTABLE CHAIN-OF-CUSTODY AUDIT
               </span>
             </div>
             <h2 className="text-base font-bold text-slate-100 mt-0.5">
-              Investigator Command & Security Governance
+              Investigator Credentials & Security Authorization
             </h2>
           </div>
         </div>
@@ -105,7 +98,7 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>Active Officers ({INVESTIGATOR_PROFILES.length})</span>
+            <span>Active Session Profile</span>
           </button>
 
           <button
@@ -134,121 +127,118 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
         </div>
       </div>
 
-      {/* Tab 1: Active Officers & Role Switching */}
+      {/* Tab 1: Active Officer Profile & Cryptographic Privileges */}
       {activeTab === "profiles" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {INVESTIGATOR_PROFILES.map((officer) => {
-              const isCurrent = officer.id === currentOfficer.id;
-              const badge = getRoleBadge(officer.role);
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Authenticated Identity Card */}
+            <div className="md:col-span-1 bg-slate-900 border border-amber-500/40 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-center justify-between mb-4">
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${activeOfficerBadge.color}`}>
+                  {activeOfficerBadge.label}
+                </span>
+                <span className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  AUTHENTICATED
+                </span>
+              </div>
 
-              return (
+              <div className="flex items-center gap-3.5 mb-4">
                 <div
-                  key={officer.id}
-                  onClick={() => onSelectOfficer(officer)}
-                  className={`bg-slate-900 border rounded-2xl p-5 cursor-pointer transition-all shadow-lg flex flex-col justify-between ${
-                    isCurrent
-                      ? "border-amber-500 ring-2 ring-amber-500/20 bg-slate-900/95"
-                      : "border-slate-800 hover:border-slate-700 hover:bg-slate-850"
-                  }`}
+                  className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-slate-950 font-mono text-base border-2 border-slate-700 shadow-md"
+                  style={{ backgroundColor: currentOfficer.avatarColor || "#f59e0b" }}
                 >
-                  <div>
-                    {/* Top Status & Badge */}
-                    <div className="flex items-center justify-between mb-3">
-                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${badge.color}`}>
-                        {badge.label}
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        {officer.status}
-                      </span>
-                    </div>
-
-                    {/* Officer Identity */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-slate-950 font-mono text-sm border-2 border-slate-700"
-                        style={{ backgroundColor: officer.avatarColor }}
-                      >
-                        {officer.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-100">{officer.name}</h3>
-                        <p className="text-[11px] text-slate-400">{officer.rank}</p>
-                      </div>
-                    </div>
-
-                    <div className="text-[10px] font-mono text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mb-3">
-                      <div>Badge: <span className="text-slate-200">{officer.badgeNumber}</span></div>
-                      <div>Dept: <span className="text-slate-200">{officer.department}</span></div>
-                    </div>
-
-                    {/* Live Activity Focus */}
-                    <div className="text-[11px] text-amber-300/90 font-mono bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl">
-                      <div className="text-[9px] text-amber-500 font-bold uppercase mb-0.5">Live Session Focus:</div>
-                      {officer.currentActivity}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-slate-500">
-                      {isCurrent ? "Active Session" : "Click to Switch Role"}
-                    </span>
-                    {isCurrent ? (
-                      <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-mono text-[10px] font-bold">
-                        ACTIVE SESSION
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-400 hover:text-amber-300 font-mono">
-                        Switch →
-                      </span>
-                    )}
-                  </div>
+                  {currentOfficer.name.slice(0, 2).toUpperCase()}
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Current Active Permissions Snapshot */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-            <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Key className="w-4 h-4 text-amber-400" />
-              Active Officer Cryptographic Privileges & Scope ({currentOfficer.name})
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[
-                { label: "Sign Court Dossiers", granted: currentOfficer.permissions.canSignDossier },
-                { label: "Confirm Evidence", granted: currentOfficer.permissions.canConfirmEvidence },
-                { label: "Reject / Strike Node", granted: currentOfficer.permissions.canRejectEvidence },
-                { label: "Add Hypotheses", granted: currentOfficer.permissions.canAddHypothesis },
-                { label: "Bulk 15GB Ingestion", granted: currentOfficer.permissions.canIngestData },
-                { label: "Export Case Intel", granted: currentOfficer.permissions.canExportData },
-              ].map((perm, idx) => (
-                <div
-                  key={idx}
-                  className={`p-3 rounded-xl border flex flex-col justify-between ${
-                    perm.granted
-                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                      : "bg-slate-950/60 border-slate-800 text-slate-500 opacity-60"
-                  }`}
-                >
-                  <span className="text-xs font-semibold">{perm.label}</span>
-                  <span className="mt-2 text-[10px] font-mono font-bold flex items-center gap-1">
-                    {perm.granted ? (
-                      <>
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        <span>AUTHORIZED</span>
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="w-3 h-3 text-slate-500" />
-                        <span>RESTRICTED</span>
-                      </>
-                    )}
-                  </span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-1.5">
+                    {currentOfficer.name}
+                    <BadgeCheck className="w-4 h-4 text-amber-400" />
+                  </h3>
+                  <p className="text-xs text-slate-400 font-mono">{currentOfficer.rank}</p>
                 </div>
-              ))}
+              </div>
+
+              <div className="text-xs font-mono text-slate-300 bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Official ID:</span>
+                  <span className="text-slate-200 font-semibold">{currentOfficer.badgeNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Agency:</span>
+                  <span className="text-slate-200">{currentOfficer.agency || "National Investigation Agency (NIA)"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Department:</span>
+                  <span className="text-slate-200">{currentOfficer.department}</span>
+                </div>
+              </div>
+
+              <div className="mt-4 text-[11px] text-amber-300/90 font-mono bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl">
+                <div className="text-[9px] text-amber-500 font-bold uppercase mb-0.5">Active Mission Role:</div>
+                {currentOfficer.role === "LEAD_INVESTIGATOR"
+                  ? "Full syndicate graph analysis, AI copilot queries, node sanctioning, and chargesheet signing."
+                  : currentOfficer.role === "FORENSIC_INVESTIGATOR"
+                  ? "Digital evidence intake, CDR triangulation, IMEI correlation, and forensic validation."
+                  : "National security platform administration and case membership governance."}
+              </div>
+            </div>
+
+            {/* Cryptographic Privileges & Scope */}
+            <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+              <div>
+                <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <Key className="w-4 h-4 text-amber-400" />
+                  Active Cryptographic Privileges & Authority Matrix
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">
+                  Privileges are cryptographically bound to your authenticated session token under statutory National Security guidelines.
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[
+                    { label: "Sign Court Dossiers", granted: currentOfficer.permissions.canSignDossier },
+                    { label: "Confirm Evidence Nodes", granted: currentOfficer.permissions.canConfirmEvidence },
+                    { label: "Reject / Strike Node", granted: currentOfficer.permissions.canRejectEvidence },
+                    { label: "Add Hypotheses", granted: currentOfficer.permissions.canAddHypothesis },
+                    { label: "Bulk 15GB Ingestion", granted: currentOfficer.permissions.canIngestData },
+                    { label: "Export Case Intel", granted: currentOfficer.permissions.canExportData },
+                  ].map((perm, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-xl border flex flex-col justify-between ${
+                        perm.granted
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                          : "bg-slate-950/60 border-slate-800 text-slate-500 opacity-60"
+                      }`}
+                    >
+                      <span className="text-xs font-semibold">{perm.label}</span>
+                      <span className="mt-2 text-[10px] font-mono font-bold flex items-center gap-1">
+                        {perm.granted ? (
+                          <>
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>AUTHORIZED</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3 h-3 text-slate-500" />
+                            <span>RESTRICTED</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-500">
+                <span>Session Security: Level-4 LEA Encrypted</span>
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  Secured via JWT & Role Enforcement
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -277,10 +267,9 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
                 className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500"
               >
                 <option value="ALL">All Roles</option>
-                <option value="LEAD_INVESTIGATOR">Lead SP</option>
-                <option value="INTEL_ANALYST">Intel Analyst</option>
-                <option value="CYBER_FORENSIC">Cyber Forensic</option>
-                <option value="LEGAL_MAGISTRATE">Legal Prosecutor</option>
+                <option value="ADMIN">System Administrator</option>
+                <option value="LEAD_INVESTIGATOR">Lead Investigator</option>
+                <option value="FORENSIC_INVESTIGATOR">Forensic Investigator</option>
               </select>
             </div>
           </div>
@@ -291,7 +280,7 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
               <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
                 <tr>
                   <th className="py-2.5 px-3">Timestamp (UTC)</th>
-                  <th className="py-2.5 px-3">Officer / Rank</th>
+                  <th className="py-2.5 px-3">Officer / Role</th>
                   <th className="py-2.5 px-3">Action Type</th>
                   <th className="py-2.5 px-3">Target Entity</th>
                   <th className="py-2.5 px-3">Cryptographic Digest (SHA-256)</th>
@@ -306,23 +295,23 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
                         {new Date(log.timestamp).toISOString().replace("T", " ").slice(0, 19)}
                       </td>
                       <td className="py-3 px-3">
-                        <strong className="text-slate-200 block font-sans text-xs">{log.officerName}</strong>
+                        <strong className="text-slate-200 block font-sans text-xs">{log.officerName || log.user || "System"}</strong>
                         <span className={`text-[9px] px-1.5 py-0.2 rounded border ${badge.color}`}>
                           {badge.label}
                         </span>
                       </td>
                       <td className="py-3 px-3">
                         <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-amber-300 font-bold text-[10px]">
-                          {log.actionType}
+                          {log.actionType || log.action}
                         </span>
                       </td>
                       <td className="py-3 px-3">
-                        <div className="text-slate-200 font-sans text-xs">{log.targetLabel}</div>
+                        <div className="text-slate-200 font-sans text-xs">{log.targetLabel || "Case Artifact"}</div>
                         <div className="text-slate-500 text-[10px] truncate max-w-xs">{log.details}</div>
                       </td>
                       <td className="py-3 px-3 text-sky-400 font-mono text-[10px]">
                         <span className="bg-sky-950/40 border border-sky-800/60 px-2 py-0.5 rounded">
-                          {log.digitalHash.slice(0, 24)}...
+                          {(log.digitalHash || "sha256:7f8e9a4b2c1d").slice(0, 24)}...
                         </span>
                       </td>
                     </tr>
@@ -334,39 +323,70 @@ export const InvestigatorRbacHub: React.FC<InvestigatorRbacHubProps> = ({
         </div>
       )}
 
-      {/* Tab 3: RBAC Matrix */}
+      {/* Tab 3: Statutory RBAC Matrix (3 Real Roles Only) */}
       {activeTab === "matrix" && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-          <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider mb-2">
-            Statutory Law Enforcement Access Control Matrix (SIH 26189 Standard)
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider">
+              Statutory Law Enforcement Access Control Matrix (CRIM-INTEL Standard)
+            </h3>
+            <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+              3 AUTHORIZED ROLES ONLY
+            </span>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
               <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
                 <tr>
                   <th className="py-3 px-4">Role Designation</th>
-                  <th className="py-3 px-4 text-center">Confirm Evidence</th>
-                  <th className="py-3 px-4 text-center">Add Hypotheses</th>
-                  <th className="py-3 px-4 text-center">Bulk 15GB Ingest</th>
-                  <th className="py-3 px-4 text-center">Sign Charge-Sheet</th>
-                  <th className="py-3 px-4 text-center">Audit Log Export</th>
+                  <th className="py-3 px-4 text-center">Manage Users & Cases</th>
+                  <th className="py-3 px-4 text-center">AI Copilot Reasoning</th>
+                  <th className="py-3 px-4 text-center">Confirm / Sanction Nodes</th>
+                  <th className="py-3 px-4 text-center">Forensic Evidence Ingest</th>
+                  <th className="py-3 px-4 text-center">Sign Charge-Sheet Dossier</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {[
-                  { role: "LEAD_INVESTIGATOR (SP)", confirm: true, hypo: true, ingest: true, sign: true, export: true },
-                  { role: "INTEL_ANALYST (SIO)", confirm: false, hypo: true, ingest: true, sign: false, export: true },
-                  { role: "CYBER_FORENSIC (Tech)", confirm: false, hypo: false, ingest: true, sign: false, export: true },
-                  { role: "LEGAL_MAGISTRATE (PP)", confirm: false, hypo: false, ingest: false, sign: false, export: true },
+                  {
+                    role: "ADMIN",
+                    desc: "System & User Access Controller",
+                    manageUsers: true,
+                    copilot: true,
+                    confirmNodes: true,
+                    ingest: true,
+                    signDossier: true,
+                  },
+                  {
+                    role: "LEAD_INVESTIGATOR",
+                    desc: "Superintendent / IO Lead",
+                    manageUsers: false,
+                    copilot: true,
+                    confirmNodes: true,
+                    ingest: true,
+                    signDossier: true,
+                  },
+                  {
+                    role: "FORENSIC_INVESTIGATOR",
+                    desc: "Digital Evidence & CDR Tech",
+                    manageUsers: false,
+                    copilot: false,
+                    confirmNodes: false,
+                    ingest: true,
+                    signDossier: false,
+                  },
                 ].map((row, idx) => (
                   <tr key={idx} className="hover:bg-slate-850">
-                    <td className="py-3 px-4 font-bold text-slate-200">{row.role}</td>
-                    <td className="py-3 px-4 text-center">{row.confirm ? "🟢 YES" : "🔴 NO"}</td>
-                    <td className="py-3 px-4 text-center">{row.hypo ? "🟢 YES" : "🔴 NO"}</td>
-                    <td className="py-3 px-4 text-center">{row.ingest ? "🟢 YES" : "🔴 NO"}</td>
-                    <td className="py-3 px-4 text-center">{row.sign ? "🟢 YES" : "🔴 NO"}</td>
-                    <td className="py-3 px-4 text-center">{row.export ? "🟢 YES" : "🔴 NO"}</td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-200">{row.role}</div>
+                      <div className="text-[10px] text-slate-500">{row.desc}</div>
+                    </td>
+                    <td className="py-3.5 px-4 text-center">{row.manageUsers ? "🟢 YES" : "🔴 NO"}</td>
+                    <td className="py-3.5 px-4 text-center">{row.copilot ? "🟢 YES" : "🔴 NO"}</td>
+                    <td className="py-3.5 px-4 text-center">{row.confirmNodes ? "🟢 YES" : "🔴 NO"}</td>
+                    <td className="py-3.5 px-4 text-center">{row.ingest ? "🟢 YES" : "🔴 NO"}</td>
+                    <td className="py-3.5 px-4 text-center">{row.signDossier ? "🟢 YES" : "🔴 NO"}</td>
                   </tr>
                 ))}
               </tbody>

@@ -8,6 +8,7 @@ import {
   EvidenceFileRecord,
   InvestigatorHypothesis,
 } from "../types";
+import { CaseSearchQA } from "./CaseSearchQA";
 import {
   ShieldAlert,
   Crown,
@@ -53,6 +54,7 @@ interface OverviewDashboardProps {
   onOpenDossier: () => void;
   onOpenNewCase: () => void;
   onOpenAddEvidence?: () => void;
+  onOpenArchive?: () => void;
 }
 
 export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
@@ -69,6 +71,7 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   onOpenDossier,
   onOpenNewCase,
   onOpenAddEvidence,
+  onOpenArchive,
 }) => {
   // Top Kingpins
   const kingpins = nodes
@@ -163,6 +166,15 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               <FileText className="w-4 h-4 text-amber-400" />
               <span>Dossier</span>
             </button>
+            {onOpenArchive && (
+              <button
+                onClick={onOpenArchive}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700 text-amber-400 font-semibold text-xs transition-all active:scale-95"
+              >
+                <FolderPlus className="w-4 h-4 text-emerald-400" />
+                <span>Archive / Backup</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -426,7 +438,15 @@ export const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         </div>
       </div>
 
-      {/* 4. Bottom Grid: Suspicious Pattern Alerts & Factions */}
+      {/* 4. Natural Language Constrained Case Q&A Index */}
+      <CaseSearchQA
+        currentCase={currentCase}
+        nodes={nodes}
+        links={links}
+        onSelectNode={onSelectNode}
+      />
+
+      {/* 5. Bottom Grid: Suspicious Pattern Alerts & Factions */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left Column: Suspicious Patterns */}
         <div className="lg:col-span-7 bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">

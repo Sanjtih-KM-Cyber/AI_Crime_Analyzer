@@ -31,6 +31,7 @@ interface SidebarProps {
   onOpenCopilot: () => void;
   onOpenDossier: () => void;
   onOpenNewCase: () => void;
+  onOpenMyCases?: () => void;
   nodeCount: number;
   kingpinCount: number;
   cutVertexCount: number;
@@ -50,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCopilot,
   onOpenDossier,
   onOpenNewCase,
+  onOpenMyCases,
   nodeCount,
   kingpinCount,
   cutVertexCount,
@@ -368,13 +370,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </select>
 
               {/* Add New Case Action Button */}
-              <button
-                onClick={handleNewCaseClick}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all shadow-sm active:scale-95 group"
-              >
-                <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                <span>+ Register New Case</span>
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleNewCaseClick}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all shadow-sm active:scale-95 group"
+                >
+                  <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+                  <span>+ New Case</span>
+                </button>
+                {onOpenMyCases && (
+                  <button
+                    onClick={() => {
+                      onOpenMyCases();
+                      if (onCloseMobile) onCloseMobile();
+                    }}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-amber-400 transition-colors"
+                    title="View All Case Workspaces & Access Requests"
+                  >
+                    <FolderGit2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
               <div className="flex items-center justify-between text-[10px] text-slate-400 px-1">
                 <span className="truncate max-w-[140px]">{currentCase.leadAgency}</span>
